@@ -1,0 +1,41 @@
+\section{Motivation}
+Das Autonome Fahren ist ein Konzept, welches mehr und mehr an Bedeutung gewinnt. Da mit der zunehmenden
+Digitalisierung auch eine höherer Grad der Automatisierung gefragt ist, um z.B. Logistik- oder Transport-Prozesse 
+kostengünstiger und sicherer zu gestalten, ergeben sich hierbei auch Anforderungen an das maschinengesteuerte Fahren.
+Zum aktuellen Zeitpunkt kommt eine Hybrid-Form in modernen Fahrzeugen bereits zum Einsatz, wodurch unterschiedliche 
+Fahrmannöver, wie z.B. das Einparken oder Halten einer Spur, teilautomatisiert werden. Damit das Fahren dauerhaft oder
+vollständig von einem Softwaresystem übernommen werden kann, muss es auch in nicht-alltäglichen Situationen nachvollziehbar
+entscheiden.
+
+Um zwischen den einzelnen Ebenen der Autonomie zu unterscheiden, werden verschiedene Autonomiestufen definiert.
+\begin{itemize}
+    \item Autonomiestufe 0: "Driver only", der Fahrer fährt selbst ohne Assistenzsysteme.
+    \item Autonomiestufe 1: Der Fahrer wird bei der Bedienung des Fahrezeugs unterstützt, wie z.B. durch einen Tempomat.
+    \item Autonomiestufe 2: Das Fahrzeug ist teilautomatisiert und bietet Assistenzsysteme für automatisiertes Einparken 
+                            oder zum halten der Spur.
+    \item Autonomiestufe 3: Einzelne Fahrmannöver, wie z.B. das Wechseln der Fahrspur, werden vom Fahrzeug automatisiert durchgeführt.
+                            Falls Handlungsbedarf für den Fahrer besteht, wird dieser innerhalb einer Vorwarnzeit zur Übernahme
+                            der Fahrzeugführung aufgefordert. Aktuell wird darauf hingearbeitet, Fahrzeuge dieser Autonomiestufe
+                            für den öffentlichen Straßenverkehr zuzulassen.
+    \item Autonomiestufe 4: Das Softwaresystem übernimmt dauerhaft die Steuerung des Fahrzeugs. Falls der Fahrer die Fahrzeugführung
+                            übernehmen muss, wird dieser innerhalb einer Vorwarnzeit benachrichtigt.
+    \item Autonomiestufe 5: Das Fahrzeug ist vollautomatisiert, ein Fahrer ist nicht länger erforderlich. \cite{BASt}
+\end{itemize}
+
+Insbesondere für die Autonomiestufe 3 gab es bereits mehrere Projekte, die solche Systeme in der Praxis getestet haben. Im Juli 2014
+gab es hierzu ein Pionierprojekt, bei welchem der Mercedes-Benz Future Truck 2025 auf einem gesperrten Autobahnteilstück bei Magdeburg 
+autonom gefahren ist. Das System hat hierbei beispielsweise das mittige Fahren innerhalb der rechten Fahrspur sowie das Beschleunigen
+und Bremsen übernommen. Der Fahrer konnte sich somit anderen Aufgaben widmen, wie z.B. der Planung der nächsten Tour oder auch der
+Frachtkontrolle über digitale Displays. Durch den Wegfall mehrerer Bedienelemente, hat der Fahrzeugführer in diesem Beispiel auch mehr
+Platz im Innenraum. \cite{benz-ft2025}
+
+Zum Erreichen der Autonomiestufe 4 und 5 stellen sich hierbei neben der rechtlichen Grundlage auch technische Herausforderungen.
+Ein Beispiel hierfür ist die Erkennung von Wildtieren, die den Straßenverkehr behindern oder gefährden können. Der schwedische
+Autohersteller Volvo kann mit seiner Software beispielsweise die heimische Fauna bestehend aus Tieren wie Elchen, Rehen oder Rentieren
+zuverlässig erkennen, scheitert jedoch beispielsweise an Kängurus. \cite{volvo-detection-report} 
+Dies zeigt, dass es unzählig viele Szenarien gibt, die es beim Autonomen Fahren zu betrachten gibt, um die Fahrsicherheit entsprechend
+zu gewährleisten.
+
+
+\section{Zielstellung}
+Welche Szenarien gibt es zu beachten und wie sollen diese bearbeitet werden?
