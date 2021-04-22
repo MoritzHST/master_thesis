@@ -1,0 +1,60 @@
+This is BibTeX, Version 0.99d
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+Reallocating 'name_of_file' (item size: 1) to 9 items.
+The style file: abbrvdin.bst
+Reallocating 'name_of_file' (item size: 1) to 20 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'wiz_functions' (item size: 4) to 6000 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Database file #1: chapters/literature.bib
+Warning--to sort, need author or key in BASt
+Warning--to sort, need author or key in benz-ft2025
+Warning--to sort, need author or key in volvo-detection-report
+Warning--empty year in BASt
+Warning--empty year in volvo-detection-report
+Warning--empty year in benz-ft2025
+You've used 3 entries,
+            4332 wiz_defined-function locations,
+            837 strings with 6346 characters,
+and the built_in function-call counts, 629 in all, are:
+= -- 63
+> -- 3
+< -- 0
++ -- 3
+- -- 0
+* -- 35
+:= -- 96
+add.period$ -- 3
+call.type$ -- 3
+change.case$ -- 6
+chr.to.int$ -- 0
+cite$ -- 9
+duplicate$ -- 24
+empty$ -- 64
+format.name$ -- 0
+if$ -- 145
+int.to.chr$ -- 0
+int.to.str$ -- 3
+missing$ -- 12
+newline$ -- 25
+num.names$ -- 0
+pop$ -- 12
+preamble$ -- 1
+purify$ -- 6
+quote$ -- 0
+skip$ -- 21
+stack$ -- 0
+substring$ -- 30
+swap$ -- 3
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 12
+warning$ -- 6
+while$ -- 0
+width$ -- 4
+write$ -- 40
+(There were 6 warnings)
