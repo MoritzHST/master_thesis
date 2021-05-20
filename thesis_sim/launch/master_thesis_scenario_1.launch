@@ -1,12 +1,12 @@
 <launch>
-  <env name="GAZEBO_RESOURCE_PATH" value="$(find master_thesis)/models/ground_picture" />
+  <env name="GAZEBO_RESOURCE_PATH" value="$(find thesis_sim)/models/ground_picture" />
 
   <arg name="x_pos" default="0.245"/>
   <arg name="y_pos" default="-1.787"/>
   <arg name="z_pos" default="0"/>  
 
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
-    <arg name="world_name" value="$(find master_thesis)/worlds/turtlebot3_autorace.world" />
+    <arg name="world_name" value="$(find thesis_sim)/worlds/turtlebot3_autorace.world" />
     <arg name="paused" value="false"/>
     <arg name="use_sim_time" value="true"/>
     <arg name="gui" value="true"/>

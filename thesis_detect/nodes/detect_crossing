@@ -1,0 +1,504 @@
+#!/usr/bin/env python
+
+import rospy
+import numpy as np
+import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image, CompressedImage
+from thesis_detect.math_util import *
+from nav_msgs.msg import Odometry
+import thesis_detect.cv_util as cv_util
+from thesis_detect.msg import CrossingDataArray, CrossingData
+import tf
+
+
+class DetectCrossing():
+    def __init__(self):
+        self.top_x = rospy.get_param("/camera/extrinsic_camera_calibration/top_x", 75)
+        self.top_y = rospy.get_param("/camera/extrinsic_camera_calibration/top_y", 35)
+        self.bottom_x = rospy.get_param("/camera/extrinsic_camera_calibration/bottom_x", 165)
+        self.bottom_y = rospy.get_param("/camera/extrinsic_camera_calibration/bottom_y", 120)
+        self.hue_white_l = rospy.get_param("~detect/lane/white/hue_l", 0)
+        self.hue_white_h = rospy.get_param("~detect/lane/white/hue_h", 25)
+        self.saturation_white_l = rospy.get_param("~detect/lane/white/saturation_l", 0)
+        self.saturation_white_h = rospy.get_param("~detect/lane/white/saturation_h", 36)
+        self.lightness_white_l = rospy.get_param("~detect/lane/white/lightness_l", 180)
+        self.lightness_white_h = rospy.get_param("~detect/lane/white/lightness_h", 255)
+
+        self.hue_yellow_l = rospy.get_param("~detect/lane/yellow/hue_l", 27)
+        self.hue_yellow_h = rospy.get_param("~detect/lane/yellow/hue_h", 41)
+        self.saturation_yellow_l = rospy.get_param("~detect/lane/yellow/saturation_l", 130)
+        self.saturation_yellow_h = rospy.get_param("~detect/lane/yellow/saturation_h", 255)
+        self.lightness_yellow_l = rospy.get_param("~detect/lane/yellow/lightness_l", 160)
+        self.lightness_yellow_h = rospy.get_param("~detect/lane/yellow/lightness_h", 255)
+        self.cvBridge = CvBridge()
+        self.projected_image = None
+
+        self.sub_masked_image_original = rospy.Subscriber('/camera/image_projected/compressed', CompressedImage,
+                                                          self.cb_find_crossing, queue_size=1)
+
+        self.sub_odom = rospy.Subscriber('/odom', Odometry, self.cb_get_odom, queue_size=1)
+
+        self.pub_crossing = rospy.Publisher('/detect/crossing/data', CrossingDataArray, queue_size=1)
+
+        self.debug_image = rospy.Publisher('/mw/debug/compressed', CompressedImage, queue_size=1)
+        self.debug_image1 = rospy.Publisher('/mw/debug1/compressed', CompressedImage, queue_size=1)
+        self.debug_image2 = rospy.Publisher('/mw/debug2/compressed', CompressedImage, queue_size=1)
+        self.debug_image3 = rospy.Publisher('/mw/debug3/compressed', CompressedImage, queue_size=1)
+        self.crossing_reliabilities = []
+        self.counter = 1
+        self.center_point = (500, 600)
+        self.target_point = (500, 0)
+
+    def cb_get_odom(self, message):
+        self.pose = message.pose
+
+    def cb_find_crossing(self, image):
+        if self.counter % 3 != 0:
+            self.counter += 1
+            return
+        else:
+            self.counter = 1
+
+        # converting compressed image to opencv image
+        np_arr = np.fromstring(image.data, np.uint8)
+        cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+        mask = self.mask_lines(cv_image)
+        mask = cv2.dilate(mask, np.ones((20, 20)))
+        mask = cv2.erode(mask, np.ones((10, 10)))
+
+        low_threshold = 50
+        high_threshold = 255
+        edges = cv2.Canny(mask, low_threshold, high_threshold)
+        rho = 1  # distance resolution in pixels of the Hough grid
+        theta = np.pi / 180  # angular resolution in radians of the Hough grid
+        threshold = 20  # minimum number of votes (intersections in Hough grid cell)
+        min_line_length = 100  # minimum number of pixels making up a line
+        max_line_gap = 20  # maximum gap in pixels between connectable line segments
+        line_image = np.copy(cv_image) * 0  # creating a blank to draw lines on
+        tmp_image = np.copy(cv_image) * 0
+
+        # Run Hough on edge detected image
+        # Output "lines" is an array containing endpoints of detected line segments
+        lines = cv2.HoughLinesP(edges, rho, theta, threshold, np.array([]),
+                                min_line_length, max_line_gap)
+        if lines is None:
+            return
+        removed_lines = None
+        lane_lines = []
+        for line in lines:
+            for x1, y1, x2, y2 in line:
+                cv2.line(tmp_image, (x1, y1), (x2, y2), list(np.random.choice(range(256), size=3)), 5)
+            if removed_lines is not None and len(removed_lines) > 0:
+                value = np.isin(line, removed_lines)
+                if value.all():
+                    continue
+                else:
+                    pass
+
+            centered_line, related_lines = self.compute_similars(line, lines)
+            if removed_lines is None and len(related_lines) > 0:
+                removed_lines = related_lines
+            elif len(related_lines) > 0:
+                removed_lines = np.concatenate((removed_lines, related_lines))
+            color = (127, 127, 0)
+            lane_lines.append(centered_line)
+            if centered_line is not None:
+                for rx1, ry1, rx2, ry2 in centered_line:
+                    cv2.line(line_image, (rx1, ry1), (rx2, ry2), color, 5)
+
+        self.debug_image1.publish(self.cvBridge.cv2_to_compressed_imgmsg(tmp_image, "jpg"))
+
+        arr_cpy = self.crossing_reliabilities
+        for i in range(0, len(arr_cpy)):
+            self.crossing_reliabilities[i]["reliability"] -= 5
+        self.crossing_reliabilities[:] = [obj for obj in self.crossing_reliabilities if
+                                          not obj["reliability"] == 0]
+
+        self.compute_crossing(lane_lines, line_image)
+
+        self.debug_image2.publish(self.cvBridge.cv2_to_compressed_imgmsg(mask, "jpg"))
+
+        crossings = []
+        for i in range(0, len(self.crossing_reliabilities)):
+            crossing = self.crossing_reliabilities[i]
+            if crossing["reliability"] < 50:
+                continue
+            points = crossing["points"]
+            p1 = np.array([points[0], points[1]])
+            p2 = np.array([points[2], points[3]])
+            p3 = np.array([points[4], points[5]])
+
+            if p2[1] > p3[1]:
+                current_line_point = p2
+                other_line_point = p3
+            else:
+                current_line_point = p3
+                other_line_point = p2
+            blank_image = np.zeros((1, 1, 3), np.uint8)
+            pixel1 = cv_image[current_line_point[1], current_line_point[0]]
+            blank_image[0, 0] = pixel1
+            right_matrix = self.mask_white_line(blank_image)
+            left_matrix = self.mask_yellow_line(blank_image)
+            direction = None
+            if right_matrix > 0:
+                direction = "right"
+            elif left_matrix > 0:
+                direction = "left"
+
+            if direction is None:
+                continue
+
+            pixel2 = cv_image[other_line_point[1], other_line_point[0]]
+            blank_image[0, 0] = pixel2
+            white_matrix = self.mask_white_line(blank_image)
+            yellow_matrix = self.mask_yellow_line(blank_image)
+
+            if right_matrix > 0 and white_matrix > 0:
+                allowed = True
+            elif left_matrix > 0 and yellow_matrix > 0:
+                allowed = True
+            else:
+                allowed = False
+            crossing["allowed"] = allowed
+            crossing["direction"] = direction
+            crossing["current_line_point"] = current_line_point
+
+            starting = self.get_target_point(p1, current_line_point, self.center_point)
+            target = self.get_target_point(p1, other_line_point, self.target_point)
+
+            crossing["start"] = starting
+            crossing["target"] = target
+            cv2.circle(line_image, starting, 10, (0, 0, 255),
+                       thickness=5)
+            cv2.circle(line_image, target, 10, (0, 0, 255),
+                       thickness=5)
+            crossings.append(crossing)
+
+        self.pub_crossing_data(crossing)
+
+        # selecting 4 points from the original image
+        pts_dst = np.array(
+            [[160 - self.top_x, 180 - self.top_y], [160 + self.top_x, 180 - self.top_y], [160 + self.bottom_x, 120 + self.bottom_y],
+             [160 - self.bottom_x, 120 + self.bottom_y]])
+
+        # selecting 4 points from image that will be transformed
+        pts_src = np.array([[200, 0], [800, 0], [800, 600], [200, 600]])
+
+        # finding homography matrix
+        h, status = cv2.findHomography(pts_src, pts_dst)
+
+        # homography process
+        line_image_new = cv2.warpPerspective(line_image, h, (320, 240))
+        self.debug_image.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image, "jpg"))
+        self.debug_image3.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image_new, "jpg"))
+
+    def pub_crossing_data(self, crossings):
+        crossing_data = CrossingDataArray()
+        crossing_data.crossingData = []
+        for i in range(0, len(crossings)):
+            current = crossings[i]
+            data_row = CrossingData()
+            data_row.direction = current["direction"]
+            data_row.allowed = current["allowed"]
+            data_row.start_x = current["start"][0]
+            data_row.start_y = current["start"][1]
+            data_row.target_x = current["target"][0]
+            data_row.target_y = current["target"][1]
+            crossing_data.crossingData.append(data_row)
+        self.pub_crossing.publish(crossing_data)
+
+    def get_target_point(self, p1, p2, p3):
+        pos_vector, dir_vector = get_vector_representation(p1[0], p1[1], p2[0], p2[1])
+        intersect_point = get_perp_intersect_point(pos_vector, dir_vector, p3[0], p3[1])
+        _, rel_dir_vector = get_vector_representation(intersect_point[0], intersect_point[1], p3[0],
+                                                      p3[1])
+        rel_dir_vector = convert_to_vector_with_magnitude(rel_dir_vector, 250)
+        target = (p2[0] + int(rel_dir_vector[0]), p2[1] + int(rel_dir_vector[1]))
+        return target
+
+    def compute_crossing(self, lane_lines, line_image):
+        for current_line in lane_lines:
+            for other_line in lane_lines:
+                is_same = current_line == other_line
+                if not is_same.all() and current_line is not None and other_line is not None:
+                    try:
+                        x, y = compute_line_intersection(current_line, other_line)
+                    except TypeError as e:
+                        rospy.loginfo("A line was for some reason not defined. current_Line: %s, other_line: %s" % (
+                        str(current_line), str(other_line)))
+                        rospy.logerr(e)
+                        continue
+                    dimensions = line_image.shape
+                    if not (0 < x < dimensions[1] and 0 < y < dimensions[0]):
+                        continue
+
+                    for x1, y1, x2, y2 in current_line:
+                        point_on_line = is_point_on_line(x1, y1, x2, y2, x, y)
+                        pos_vector1, dir_vector1 = get_vector_representation(x1, y1, x2, y2)
+                    for x1, y1, x2, y2 in other_line:
+                        point_on_line = point_on_line or is_point_on_line(x1, y1, x2, y2, x, y)
+                        pos_vector2, dir_vector2 = get_vector_representation(x1, y1, x2, y2)
+
+                    for x1, y1, x2, y2 in current_line:
+                        vector1 = get_perp_intersect_point(pos_vector2, dir_vector2, x1, y1)
+                        distance1 = get_distance_between_vectors(vector1, np.array([x1, y1]))
+                        vector2 = get_perp_intersect_point(pos_vector2, dir_vector2, x2, y2)
+                        distance2 = get_distance_between_vectors(vector2, np.array([x2, y2]))
+
+                        if distance1 > distance2:
+                            relevant_current_x = x1
+                            relevant_current_y = y1
+                            shorter_current_x = x2
+                            shorter_current_y = y2
+                        else:
+                            relevant_current_x = x2
+                            relevant_current_y = y2
+                            shorter_current_x = x1
+                            shorter_current_y = y1
+
+                    for x1, y1, x2, y2 in other_line:
+                        vector1 = get_perp_intersect_point(pos_vector1, dir_vector1, x1, y1)
+                        distance1 = get_distance_between_vectors(vector1, np.array([x1, y1]))
+                        vector2 = get_perp_intersect_point(pos_vector1, dir_vector1, x2, y2)
+                        distance2 = get_distance_between_vectors(vector2, np.array([x2, y2]))
+
+                        if distance1 > distance2:
+                            relevant_other_x = x1
+                            relevant_other_y = y1
+                            shorter_other_x = x2
+                            shorter_other_y = y2
+                        else:
+                            relevant_other_x = x2
+                            relevant_other_y = y2
+                            shorter_other_x = x1
+                            shorter_other_y = y1
+                    angle = compute_angle_between_points(relevant_current_x, relevant_current_y, relevant_other_x,
+                                                             relevant_other_y, x, y)
+                    crossing_triangle = np.array([])
+                    reliability = 0
+                    distance1 = get_distance_between_vectors(np.array([shorter_current_x, shorter_current_y]),
+                                                             np.array([x, y]))
+                    distance2 = get_distance_between_vectors(np.array([shorter_other_x, shorter_other_y]),
+                                                             np.array([x, y]))
+                    if distance1 < 100 and distance2 < 100:
+                        if point_on_line:
+                            _, current_dir_vec = get_vector_representation(x, y, relevant_current_x, relevant_current_y)
+                            current_dir_vec = convert_to_vector_with_magnitude(current_dir_vec, 100)
+                            triangle_second_x = current_dir_vec[0] + x
+                            triangle_second_y = current_dir_vec[1] + y
+                            _, other_dir_vec = get_vector_representation(x, y, relevant_other_x, relevant_other_y)
+                            other_dir_vec = convert_to_vector_with_magnitude(other_dir_vec, 100)
+                            triangle_third_x = other_dir_vec[0] + x
+                            triangle_third_y = other_dir_vec[1] + y
+                            crossing_triangle = np.array(
+                                [x, y, triangle_second_x, triangle_second_y, triangle_third_x, triangle_third_y],
+                                np.int32)
+
+                        elif 110 > angle > 45:
+                            crossing_triangle = np.array(
+                                [x, y, shorter_current_x, shorter_current_y, shorter_other_x, shorter_other_y],
+                                np.int32)
+                        else:
+                            continue
+                        y1, y2, y3 = crossing_triangle[[1, 3, 5]]
+                        # if y1 has the highest value, then it is a crossing from the other side
+                        if y1 - y2 > 50 or y1 - y3 > 50:
+                            continue
+                        reliability = self.compute_reliability(crossing_triangle)
+                    if reliability > 50:
+                        cv2.circle(line_image, (int(x), int(y)), 10, (255, 0, 0),
+                                   thickness=5)
+                        cv2.drawContours(line_image, [np.reshape(crossing_triangle, (-1, 2))], 0,
+                                         (0, reliability * 0.01 * 255, 0), -1)
+
+    def compute_similars(self, line, lines, allowed_deviation_parallel=2):
+        related_lines = []
+        for x1, y1, x2, y2 in line:
+            pos_vector, dir_vector = get_vector_representation(x1, y1, x2, y2)
+        # find relevant lines that are "clustered"
+        for other_line in lines:
+            for x1, y1, x2, y2 in other_line:
+                intersect1 = get_perp_intersect_point(pos_vector, dir_vector, x1, y1)
+                distance1 = get_distance_between_vectors(intersect1, np.array([x1, y1]))
+                intersect2 = get_perp_intersect_point(pos_vector, dir_vector, x2, y2)
+                distance2 = get_distance_between_vectors(intersect2, np.array([x2, y2]))
+
+                if abs(distance1 - distance2) > 10:
+                    continue
+                distance = (distance1 + distance2) / 2
+
+                if distance > 200:
+                    continue
+                related_lines.append(other_line)
+
+        # find the outstanding lines for each cluster based on the distance between each
+        max_distance = 0
+        cluster1 = []
+        cluster2 = []
+        max_pair = [line, line]
+        for cur_line in related_lines:
+            for cx1, cy1, cx2, cy2 in cur_line:
+                cur_pos_vector, cur_dir_vector = get_vector_representation(cx1, cy1, cx2, cy2)
+                cur_pos_vector = np.array([cx1 + cx2, cy1 + cy2]) / float(2)
+                for other_line in related_lines:
+                    for ox1, oy1, ox2, oy2 in other_line:
+                        intersect1 = get_perp_intersect_point(cur_pos_vector, cur_dir_vector, ox1, oy1)
+                        distance1 = get_distance_between_vectors(intersect1, np.array([ox1, oy1]))
+                        intersect2 = get_perp_intersect_point(cur_pos_vector, cur_dir_vector, ox2, oy2)
+                        distance2 = get_distance_between_vectors(intersect2, np.array([ox2, oy2]))
+                        distance = (distance1 + distance2) / 2
+                        if distance > max_distance:
+                            max_pair = [cur_line, other_line]
+                            max_distance = distance
+        cur_line = max_pair[0]
+        for other_line in related_lines:
+            for ox1, oy1, ox2, oy2 in other_line:
+                intersect1 = get_perp_intersect_point(cur_pos_vector, cur_dir_vector, ox1, oy1)
+                distance1 = get_distance_between_vectors(intersect1, np.array([ox1, oy1]))
+                intersect2 = get_perp_intersect_point(cur_pos_vector, cur_dir_vector, ox2, oy2)
+                distance2 = get_distance_between_vectors(intersect2, np.array([ox2, oy2]))
+                distance = (distance1 + distance2) / 2
+
+                if distance < 10:
+                    cluster1.append(other_line)
+                else:
+                    cluster2.append(other_line)
+        dir_vector_cluster1 = np.zeros(2)
+        for i in range(0, len(cluster1)):
+            for cx1, cy1, cx2, cy2 in cluster1[i]:
+                _, cur_dir_vector = get_vector_representation(cx1, cy1, cx2, cy2)
+                dir_vector_cluster1 = dir_vector_cluster1 + cur_dir_vector
+        dir_vector_cluster1 = normalize_vector(dir_vector_cluster1)
+
+        dir_vector_cluster2 = np.zeros(2)
+        for i in range(0, len(cluster2)):
+            for cx1, cy1, cx2, cy2 in cluster2[i]:
+                _, cur_dir_vector = get_vector_representation(cx1, cy1, cx2, cy2)
+                dir_vector_cluster2 = dir_vector_cluster2 + cur_dir_vector
+        dir_vector_cluster2 = normalize_vector(dir_vector_cluster2)
+        dir_vector = dir_vector_cluster1 + dir_vector_cluster2
+        for x1, y1, x2, y2 in max_pair[0]:
+            pos_vector, dir_vector = get_vector_representation(x1, y1, x2, y2)
+        return_line = np.zeros((1, 4), dtype=int)
+        for x1, y1, x2, y2 in max_pair[1]:
+            intersect_point = get_perp_intersect_point(pos_vector, dir_vector, x1, y1)
+            dummy_pos_vector, o_dir_vector = get_vector_representation(x1, y1, intersect_point[0], intersect_point[1])
+            norm_o_dir_vector = normalize_vector(o_dir_vector)
+            norm_o_dir_vector *= max_distance / 2
+            nan = np.isnan(norm_o_dir_vector)
+            if not nan.any():
+                return_line[0, 0] = x1 + norm_o_dir_vector[0]
+                return_line[0, 1] = y1 + norm_o_dir_vector[1]
+                return_line[0, 2] = x2 + norm_o_dir_vector[0]
+                return_line[0, 3] = y2 + norm_o_dir_vector[1]
+        for x1, y1, x2, y2 in return_line:
+            pos_vector, _ = get_vector_representation(x1, y1, x2, y2)
+
+
+        for cur_line in related_lines:
+            for cx1, cy1, cx2, cy2 in cur_line:
+                intersect1 = get_perp_intersect_point(pos_vector, dir_vector, cx1, cy1)
+                intersect2 = get_perp_intersect_point(pos_vector, dir_vector, cx2, cy2)
+                self.extrapolate_line(return_line, intersect1[0], intersect1[1])
+                self.extrapolate_line(return_line, intersect2[0], intersect2[1])
+        return return_line, related_lines
+
+    def extrapolate_line(self, line, new_x, new_y):
+        for x1, y1, x2, y2 in line:
+            if not is_point_on_line(x1, y1, x2, y2, new_x, new_y):
+                d1 = np.linalg.norm(np.array([x1 - new_x, y1 - new_y]))
+                d2 = np.linalg.norm(np.array([x2 - new_x, y2 - new_y]))
+                if d1 < 550 or d2 < 550:
+                    if d1 < d2:
+                        line[0, 0] = new_x
+                        line[0, 1] = new_y
+                    else:
+                        line[0, 2] = new_x
+                        line[0, 3] = new_y
+
+    def main(self):
+        rospy.spin()
+
+    def compute_reliability(self, crossing_triangle):
+        crossing = move_points_to_origin(crossing_triangle)
+        rit = iter(crossing)
+        reliability = 0
+        same = False
+        for i in range(0, len(self.crossing_reliabilities)):
+            entry = self.crossing_reliabilities[i]
+            cit = iter(entry["points_at_zero"])
+            same = True
+            for cx, cy in zip(cit, cit):
+                for rx, ry in zip(rit, rit):
+                    if abs(cx - rx) > 15 or abs(cy - ry) > 15:
+                        same = False
+            if same:
+                self.crossing_reliabilities[i]["reliability"] += 10
+                if self.crossing_reliabilities[i]["reliability"] > 100:
+                    self.crossing_reliabilities[i]["reliability"] = 100
+                reliability = self.crossing_reliabilities[i]["reliability"]
+                for j in range(0, len(self.crossing_reliabilities[i]["points_at_zero"])):
+                    self.crossing_reliabilities[i]["points_at_zero"][j] = (self.crossing_reliabilities[i][
+                                                                               "points_at_zero"][
+                                                                               j] + crossing[
+                                                                               j]) / 2
+        if not same:
+            entry = {"points_at_zero": crossing, "points": crossing_triangle, "reliability": 10}
+            self.crossing_reliabilities.append(entry)
+        return reliability
+
+    def mask_lines(self, image):
+        # Convert BGR to HSV
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        Hue_l = self.hue_white_l
+        Hue_h = self.hue_yellow_h
+        Saturation_l = self.saturation_white_l
+        Saturation_h = self.saturation_yellow_h
+        Lightness_l = self.lightness_white_l
+        Lightness_h = self.lightness_yellow_h
+        # define range of yellow color in HSV
+        lower_yellow = np.array([Hue_l, Saturation_l, Lightness_l])
+        upper_yellow = np.array([Hue_h, Saturation_h, Lightness_h])
+        # Threshold the HSV image to get only yellow colors
+        mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+        return mask
+
+    def mask_yellow_line(self, image):
+        # Convert BGR to HSV
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        Hue_l = self.hue_yellow_l
+        Hue_h = self.hue_yellow_h
+        Saturation_l = self.saturation_yellow_l
+        Saturation_h = self.saturation_yellow_h
+        Lightness_l = self.lightness_yellow_l
+        Lightness_h = self.lightness_yellow_h
+        # define range of yellow color in HSV
+        lower_yellow = np.array([Hue_l, Saturation_l, Lightness_l])
+        upper_yellow = np.array([Hue_h, Saturation_h, Lightness_h])
+        # Threshold the HSV image to get only yellow colors
+        mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+        return mask
+
+    def mask_white_line(self, image):
+        # Convert BGR to HSV
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        Hue_l = self.hue_white_l
+        Hue_h = self.hue_white_h
+        Saturation_l = self.saturation_white_l
+        Saturation_h = self.saturation_white_h
+        Lightness_l = self.lightness_white_l
+        Lightness_h = self.lightness_white_h
+        # define range of white color in HSV
+        lower_white = np.array([Hue_l, Saturation_l, Lightness_l])
+        upper_white = np.array([Hue_h, Saturation_h, Lightness_h])
+        # Threshold the HSV image to get only white colors
+        mask = cv2.inRange(hsv, lower_white, upper_white)
+        return mask
+
+
+if __name__ == '__main__':
+    rospy.init_node('detect_crossing')
+    node = DetectCrossing()
+    node.main()
