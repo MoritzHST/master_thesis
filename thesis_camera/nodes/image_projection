@@ -136,7 +136,7 @@ class ImageProjection():
         triangle2 = np.array([[999, 599], [999, 340], [799, 599]], np.int32)
         black = (0, 0, 0)
         white = (255, 255, 255)
-        #cv_image_homography = cv2.fillPoly(cv_image_homography, [triangle1, triangle2], black)
+        cv_image_homography = cv2.fillPoly(cv_image_homography, [triangle1, triangle2], black)
 
         if self.pub_image_type == "compressed":
             # publishes ground-project image in compressed type

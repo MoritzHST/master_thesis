@@ -25,7 +25,8 @@ import subprocess
 import os
 import sys
 from enum import Enum
-from std_msgs.msg import UInt8
+from std_msgs.msg import UInt8, Float64
+from thesis_detect.msg import CrossingDataArray
 
 class CoreNodeController():
     def __init__(self):
@@ -34,24 +35,34 @@ class CoreNodeController():
 
         self.sub_mode_control = rospy.Subscriber('/core/decided_mode', UInt8, self.cb_receive_mode, queue_size=1)
 
-        self.CurrentMode = Enum('CurrentMode', 'idle lane_following traffic_light')
+        self.pub_vel = rospy.Publisher('/control/max_vel', Float64, queue_size=1)
+
+        self.sub_crossing_data = rospy.Subscriber('/detect/crossing/data', CrossingDataArray, self.cb_receive_crossing_data, queue_size=1)
+        self.sub_crossing_stamped = rospy.Subscriber('/detect/crossing_stamped', UInt8, self.cb_crossing_stamped, queue_size=1)
+
+        self.CurrentMode = Enum('CurrentMode', 'idle lane_following traffic_light control_crossing')
 
         # publishes orders
         self.pub_traffic_light_order = rospy.Publisher('/detect/traffic_light_order', UInt8, queue_size=1)
 
         self.pub_mode_return = rospy.Publisher('/core/returned_mode', UInt8, queue_size=1)
 
-        self.Launcher = Enum('Launcher', 'launch_camera_ex_calib launch_detect_lane launch_control_lane launch_detect_traffic_light launch_control_traffic_light launch_detect_crossing')
-
+        self.Launcher = Enum('Launcher', 'launch_camera_ex_calib launch_detect_lane launch_control_lane launch_detect_traffic_light launch_control_traffic_light launch_detect_crossing launch_control_crossing')
+        self.CrossingSteps = Enum('CrossingSteps', 'idle drive_to_start drive_to_end finished')
         self.uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
+
+        self.current_step_crossing = self.CrossingSteps.idle.value
 
         self.launch_camera_launched = False
         self.launch_detect_lane_launched = False
         self.launch_control_lane_launched = False
         self.launch_detect_traffic_light_launched = False
         self.launch_detect_crossing_launched = False
+        self.launch_control_crossing_launched = False
 
         self.current_mode = self.CurrentMode.idle.value
+
+        self.MAX_VEL = 0.12
 
         self.is_triggered = False
 
@@ -62,11 +73,33 @@ class CoreNodeController():
 
             loop_rate.sleep()
 
+    def cb_crossing_stamped(self, msg):
+        rospy.loginfo("Crossing Step changed from %d", self.current_step_crossing)
+
+        self.current_step_crossing = msg.data
+
+        rospy.loginfo("into %d", self.current_step_crossing)
+
+        if self.current_step_crossing == self.CrossingSteps.finished.value:
+            #self.launch(self.Launcher.launch_control_crossing, False)
+            self.current_mode = self.CurrentMode.lane_following.value
+            self.is_triggered = True
+            self.pub_vel.publish(self.MAX_VEL)
+
+
+
     def cb_receive_mode(self, mode_msg):
         rospy.loginfo("starts the progress with %d", mode_msg.data)
 
         self.current_mode = mode_msg.data
         self.is_triggered = True
+
+    def cb_receive_crossing_data(self, crossing_msg):
+        if crossing_msg and crossing_msg.crossingData and not self.launch_control_crossing_launched:
+            self.current_mode = self.CurrentMode.control_crossing.value
+            rospy.loginfo("New trigger for control_crossing")
+            self.launch(self.Launcher.launch_detect_lane.value, False)
+            self.launch(self.Launcher.launch_control_lane.value, False)
 
     def control_node(self):
         # lane_following
@@ -79,6 +112,7 @@ class CoreNodeController():
             self.launch(self.Launcher.launch_detect_traffic_light.value, True)
             self.launch(self.Launcher.launch_control_lane.value, True)
             self.launch(self.Launcher.launch_detect_crossing.value, True)
+            self.launch(self.Launcher.launch_control_crossing.value, True)
 
         self.is_triggered = False
 
@@ -146,7 +180,6 @@ class CoreNodeController():
                 else:
                     pass
         elif launch_num == self.Launcher.launch_detect_crossing.value:
-            rospy.loginfo("starting my node")
             if is_start:
                 if not self.launch_detect_crossing_launched:
                     self.launch_detect_crossing = roslaunch.scriptapi.ROSLaunch()
@@ -159,6 +192,21 @@ class CoreNodeController():
                 if self.launch_detect_crossing_launched:
                     self.launch_detect_crossing_launched = False
                     self.launch_detect_crossing.shutdown()
+                else:
+                    pass
+        elif launch_num == self.Launcher.launch_control_crossing.value:
+            if is_start:
+                if not self.launch_control_crossing_launched:
+                    self.launch_control_crossing = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_control_crossing = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "control/launch/thesis_control_crossing.launch"])
+                    self.launch_control_crossing_launched = True
+                    self.launch_control_crossing.start()
+                else:
+                    pass
+            else:
+                if self.launch_control_crossing_launched:
+                    self.launch_control_crossing_launched = False
+                    self.launch_control_crossing.shutdown()
                 else:
                     pass
 

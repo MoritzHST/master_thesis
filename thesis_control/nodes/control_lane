@@ -27,7 +27,7 @@ from geometry_msgs.msg import Twist
 
 class ControlLane():
     def __init__(self):
-        #self.sub_lane = rospy.Subscriber('/control/lane', Float64, self.cb_follow_lane, queue_size=1)
+        self.sub_lane = rospy.Subscriber('/control/lane', Float64, self.cb_follow_lane, queue_size=1)
         self.sub_max_vel = rospy.Subscriber('/control/max_vel', Float64, self.cb_get_max_vel, queue_size=1)
         self.pub_cmd_vel = rospy.Publisher('/control/cmd_vel', Twist, queue_size=1)
 

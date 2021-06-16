@@ -14,7 +14,7 @@ def slope(x1, y1, x2, y2):
 def get_line_equation(x1, y1, x2, y2):
     m = slope(x1, y1, x2, y2)
     if m is None:
-        return
+        m = y2 - y1
     c = -(m * x1 - y1)
 
     return m, c
@@ -98,3 +98,8 @@ def move_points_to_origin(points):
         array[i + 1] += vector[1]
 
     return array
+
+def compute_linear_zero(x1, y1, x2, y2):
+    m, n = get_line_equation(x1, y1, x2, y2)
+    x = -n / m
+    return x, 0
