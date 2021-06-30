@@ -70,10 +70,10 @@ class DetectCrossing():
 
     def cb_find_crossing(self, image):
         if self.counter % 2 != 0:
-           self.counter += 1
-           return
+            self.counter += 1
+            return
         else:
-           self.counter = 1
+            self.counter = 1
 
         self.current_pose = self.pose
 
@@ -150,30 +150,31 @@ class DetectCrossing():
             p2 = np.array([points[2], points[3]])
             p3 = np.array([points[4], points[5]])
 
-            if p2[1] > p3[1]:
-                current_line_point = p2
-                other_line_point = p3
-            else:
-                current_line_point = p3
-                other_line_point = p2
+            current_line_point = p2
+            other_line_point = p3
+
             blank_image = np.zeros((1, 1, 3), np.uint8)
-            pixel1 = cv_image[current_line_point[1], current_line_point[0]]
-            blank_image[0, 0] = pixel1
-            right_matrix = self.mask_white_line(blank_image)
-            left_matrix = self.mask_yellow_line(blank_image)
-            direction = None
-            if right_matrix > 0:
-                direction = "right"
-            elif left_matrix > 0:
-                direction = "left"
+            try:
+                pixel1 = cv_image[current_line_point[1], current_line_point[0]]
+                blank_image[0, 0] = pixel1
+                right_matrix = self.mask_white_line(blank_image)
+                left_matrix = self.mask_yellow_line(blank_image)
+                direction = None
+                if right_matrix > 0:
+                    direction = "right"
+                elif left_matrix > 0:
+                    direction = "left"
 
-            if direction is None:
+                if direction is None:
+                    continue
+
+                pixel2 = cv_image[other_line_point[1], other_line_point[0]]
+                blank_image[0, 0] = pixel2
+                white_matrix = self.mask_white_line(blank_image)
+                yellow_matrix = self.mask_yellow_line(blank_image)
+            except IndexError:
+                rospy.loginfo("Pixel was not in range")
                 continue
-
-            pixel2 = cv_image[other_line_point[1], other_line_point[0]]
-            blank_image[0, 0] = pixel2
-            white_matrix = self.mask_white_line(blank_image)
-            yellow_matrix = self.mask_yellow_line(blank_image)
 
             if right_matrix > 0 and white_matrix > 0:
                 allowed = True
@@ -198,10 +199,22 @@ class DetectCrossing():
             crossing["target"] = self.relate_point_to_pose(c_target)
 
             c_intersection_start_target = self.convert_to_coordinates(intersection_start_target)
-            m, _ = get_line_equation(0, 0.269280, c_start[0], c_start[1])
-            crossing["angle_start"] = (pi / 2) + atan(m)
+            m, _ = get_line_equation(0, 0, c_start[0], c_start[1])
+            if 0 == c_start[0]:
+                m = pi/2
+            crossing["angle_to_start"] = abs(abs(atan(m)) - (pi / 2)) * (m / abs(m))
 
-            start_target_angle = compute_angle_between_points(c_start[0], c_start[1], c_target[0], c_target[1], c_intersection_start_target[0], c_intersection_start_target[1])
+            _, dir_vector = get_vector_representation(p1[0], p1[1], p2[0], p2[1])
+            start_line_point = start + dir_vector
+            c_start_line_point = self.convert_to_coordinates(start_line_point)
+            m, _ = get_line_equation(c_start_line_point[0], c_start_line_point[1], c_start[0], c_start[1])
+            if c_start_line_point[0] == c_start[0]:
+                m = pi/2
+            crossing["angle_at_start"] = abs(abs(atan(m)) - (pi / 2)) * (m / abs(m))
+
+            start_target_angle = compute_angle_between_points(c_start[0], c_start[1], c_target[0], c_target[1],
+                                                              c_intersection_start_target[0],
+                                                              c_intersection_start_target[1])
             angle_ratio = start_target_angle / 360
             magnitude = get_distance_between_vectors(
                 np.array([c_start[0], c_start[1]]),
@@ -247,7 +260,8 @@ class DetectCrossing():
             data_row.start_y = current["start"][1]
             data_row.target_x = current["target"][0]
             data_row.target_y = current["target"][1]
-            data_row.angle_start = current["angle_start"]
+            data_row.angle_to_start = current["angle_to_start"]
+            data_row.angle_at_start = current["angle_at_start"]
             data_row.angle_target = current["angle_target"]
             data_row.angular_distance_target = current["angular_distance_target"]
             crossing_data.crossingData.append(data_row)
@@ -341,23 +355,18 @@ class DetectCrossing():
                                                              np.array([x, y]))
                     if distance1 < 100 and distance2 < 100:
                         if 160 > angle > 20:
-                            if point_on_line:
-                                _, current_dir_vec = get_vector_representation(x, y, relevant_current_x,
-                                                                               relevant_current_y)
-                                current_dir_vec = convert_to_vector_with_magnitude(current_dir_vec, 100)
-                                triangle_second_x = current_dir_vec[0] + x
-                                triangle_second_y = current_dir_vec[1] + y
-                                _, other_dir_vec = get_vector_representation(x, y, relevant_other_x, relevant_other_y)
-                                other_dir_vec = convert_to_vector_with_magnitude(other_dir_vec, 100)
-                                triangle_third_x = other_dir_vec[0] + x
-                                triangle_third_y = other_dir_vec[1] + y
-                                crossing_triangle = np.array(
-                                    [x, y, triangle_second_x, triangle_second_y, triangle_third_x, triangle_third_y],
-                                    np.int32)
-                            else:
-                                crossing_triangle = np.array(
-                                    [x, y, shorter_current_x, shorter_current_y, shorter_other_x, shorter_other_y],
-                                    np.int32)
+                            _, current_dir_vec = get_vector_representation(x, y, relevant_current_x,
+                                                                           relevant_current_y)
+                            current_dir_vec = convert_to_vector_with_magnitude(current_dir_vec, 100)
+                            triangle_second_x = current_dir_vec[0] + x
+                            triangle_second_y = current_dir_vec[1] + y
+                            _, other_dir_vec = get_vector_representation(x, y, relevant_other_x, relevant_other_y)
+                            other_dir_vec = convert_to_vector_with_magnitude(other_dir_vec, 100)
+                            triangle_third_x = other_dir_vec[0] + x
+                            triangle_third_y = other_dir_vec[1] + y
+                            crossing_triangle = np.array(
+                                [x, y, triangle_second_x, triangle_second_y, triangle_third_x, triangle_third_y],
+                                np.int32)
                         else:
                             continue
                         y1, y2, y3 = crossing_triangle[[1, 3, 5]]
@@ -503,7 +512,7 @@ class DetectCrossing():
             p_delta_y = self.current_pose.pose.position.y - related_pose.pose.position.y
 
             c_delta_x = c_current_crossing_poi[0] - c_related_crossing_poi[0]
-            c_delta_y = c_current_crossing_poi[1] - c_current_crossing_poi[1]
+            c_delta_y = c_current_crossing_poi[1] - c_related_crossing_poi[1]
 
             if abs(p_delta_x - c_delta_x) > 0.05 and abs(p_delta_y - c_delta_y) > 0.05:
                 same = False
@@ -591,19 +600,14 @@ class DetectCrossing():
         return x, y
 
     def relate_point_to_pose(self, point):
-        x = point[0]
-        y = point[1]
         quaternion = (
             self.current_pose.pose.orientation.x,
             self.current_pose.pose.orientation.y,
             self.current_pose.pose.orientation.z,
             self.current_pose.pose.orientation.w)
-        euler = tf.transformations.euler_from_quaternion(quaternion)
-        yaw = euler[2]
-        new_x = x * cos(yaw) - y * sin(yaw)
-        new_y = x * sin(yaw) - y * cos(yaw)
-
-        return self.current_pose.pose.position.x - new_y, self.current_pose.pose.position.y - new_x
+        _, _, yaw = tf.transformations.euler_from_quaternion(quaternion)
+        new_point = rotate_point_around_origin(point, yaw)
+        return self.current_pose.pose.position.x + new_point[1], self.current_pose.pose.position.y - new_point[0]
 
 
 if __name__ == '__main__':

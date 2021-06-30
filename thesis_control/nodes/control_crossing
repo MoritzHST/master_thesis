@@ -7,7 +7,7 @@ from std_msgs.msg import UInt8
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import Point, Twist
-from math import atan2
+from math import pi, isnan
 import random
 import rospy
 from thesis_detect.math_util import *
@@ -39,6 +39,8 @@ class ControlCrossing():
         self.data = None
         self.relevant_msg = None
         self.direction = None
+        self.data = []
+        self.counter = 0
 
     def cb_odom(self, msg):
         self.current_x = msg.pose.pose.position.x
@@ -48,14 +50,13 @@ class ControlCrossing():
         _, _, self.current_theta = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
 
     def cb_get_data(self, message):
-        self.data = message.crossingData
-        if self.data:
-            msg_pub_crossing_return = UInt8()
-            msg_pub_crossing_return.data = self.CrossingSteps.drive_to_start.value
-            self.pub_crossing_step.publish(msg_pub_crossing_return)
-
-            self.sub_crossing_data.unregister()
-            self.control_crossing()
+        if message.crossingData:
+            if self.counter < 10:
+                self.counter += 1
+                self.data += message.crossingData
+                return
+            else:
+                self.control_crossing()
 
     def control_crossing(self):
         directions = ["right", "left", "straight"]
@@ -75,13 +76,23 @@ class ControlCrossing():
         if self.relevant_msg is None:
             self.relevant_msg = self.data[0]
 
+        if self.relevant_msg.angle_at_start and isnan(self.relevant_msg.angle_at_start):
+            self.init()
+            return
+
+        msg_pub_crossing_return = UInt8()
+        msg_pub_crossing_return.data = self.CrossingSteps.drive_to_start.value
+        self.pub_crossing_step.publish(msg_pub_crossing_return)
+
+        self.sub_crossing_data.unregister()
+
         rospy.loginfo("Orienting on crossing %s" % self.relevant_msg)
 
         self.drive_to_start()
 
         self.check_traffic()
 
-        if self.direction is not "straight" and self.relevant_msg.allowed:
+        if self.direction == self.relevant_msg.direction and self.relevant_msg.allowed:
             self.drive_to_target()
 
         msg_pub_crossing_return = UInt8()
@@ -95,44 +106,59 @@ class ControlCrossing():
     def drive_to_start(self):
         rospy.loginfo(self.relevant_msg)
         rospy.loginfo("driving to start point")
+        rospy.loginfo("currently at x %f y %f" % (self.current_x, self.current_y))
         goal = np.array([self.relevant_msg.start_x, self.relevant_msg.start_y])
-        self.drive_to_point_in_angle(goal, self.relevant_msg.angle_start)
+        current = np.array([self.current_x, self.current_y])
+        n_goal = current - goal
+        n_goal[1], n_goal[0] = n_goal[0], n_goal[1]
+        n_goal = rotate_point_around_origin(n_goal, self.current_theta)
+        #if self.relevant_msg.direction == "left":
+            #self.relevant_msg.angle_at_start = pi + self.relevant_msg.angle_at_start
+        end_orientation = self.current_theta - self.relevant_msg.angle_at_start
+
+        if (n_goal[0] >= 0 and self.relevant_msg.angle_at_start < self.relevant_msg.angle_to_start) \
+                or (n_goal[0] <= 0 and self.relevant_msg.angle_at_start > self.relevant_msg.angle_to_start):
+            intermediate_goal = (goal + current) / 2
+            rospy.loginfo("driving to intermediate point t x %f y %f" % (intermediate_goal[0], intermediate_goal[1]))
+            self.drive_to_point_in_angle(intermediate_goal, -self.relevant_msg.angle_to_start,
+                                         self.current_theta - self.relevant_msg.angle_to_start)
+            self.relevant_msg.angle_at_start = self.relevant_msg.angle_at_start - self.relevant_msg.angle_to_start
+            end_orientation -= self.relevant_msg.angle_to_start
+        self.drive_to_point_in_angle(goal, -self.relevant_msg.angle_at_start, end_orientation)
         rospy.loginfo("start point reached")
 
-    def drive_to_point_in_angle(self, goal, angle):
+    def drive_to_point_in_angle(self, goal, angle, target_orientation):
         nearby = False
         r = rospy.Rate(10)
-        self.desired_theta = angle + self.current_theta
-        linear_distance = get_distance_between_vectors(goal, np.array([self.current_x, self.current_y]))
-        angular_distance = angle
-        previous_distance = linear_distance
-
-        print(angle)
-        print(self.desired_theta)
+        radius = compute_radius(angle, goal, np.array([self.current_x, self.current_y]))
+        angular_distance = compute_circle_arc(angle, radius)
+        previous_distance = angular_distance
         print(self.current_theta)
+        print(angle)
+        print(target_orientation)
+        print("####")
         while not nearby:
             twist_msg = Twist()
-            time_units = linear_distance / self.VEL
-            angular_velocity = angular_distance / time_units
+            time_units = abs(angular_distance / self.VEL)
+            angular_velocity = angle / time_units
 
-            if abs(self.desired_theta - self.current_theta) < 0.05:
-                remaining_distance = get_distance_between_vectors(goal, np.array([self.current_x, self.current_y]))
-                angular_velocity = (self.desired_theta - self.current_theta) / (remaining_distance / self.VEL)
-
+            if abs(target_orientation - self.current_theta) < 0.05:
+                angular_velocity = (self.desired_theta - self.current_theta/2)
             twist_msg.linear.x = self.VEL
             twist_msg.angular.z = angular_velocity
 
             self.pub_navigation.publish(twist_msg)
             r.sleep()
 
-            distance = get_distance_between_vectors(goal, np.array([self.current_x, self.current_y]))
+            radius = compute_radius(angle, goal, np.array([self.current_x, self.current_y]))
+            distance = compute_circle_arc(angle, radius)
             if distance > previous_distance:
                 nearby = True
                 continue
             previous_distance = distance
 
             # Failsafe
-            if get_distance_between_vectors(goal, np.array([self.current_x, self.current_y])) > linear_distance + 1:
+            if get_distance_between_vectors(goal, np.array([self.current_x, self.current_y])) > angular_distance + 1:
                 nearby = True
         twist_msg = Twist()
         twist_msg.linear.x = 0
@@ -146,10 +172,10 @@ class ControlCrossing():
     def drive_to_target(self):
         rospy.loginfo("driving to target point")
         angle_target = self.relevant_msg.angle_target
-        if self.direction == "right":
+        if self.relevant_msg.direction == "right":
             angle_target = -angle_target
         goal = np.array([self.relevant_msg.target_x, self.relevant_msg.target_y])
-        self.drive_to_point_in_angle(goal, angle_target)
+        self.drive_to_point_in_angle(goal, angle_target, self.current_theta + angle_target)
         rospy.loginfo("target point reached")
 
 

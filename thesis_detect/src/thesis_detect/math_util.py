@@ -1,5 +1,5 @@
 import numpy as np
-from math import pi
+from math import pi, sin, cos
 import copy
 
 
@@ -99,7 +99,27 @@ def move_points_to_origin(points):
 
     return array
 
+
 def compute_linear_zero(x1, y1, x2, y2):
     m, n = get_line_equation(x1, y1, x2, y2)
     x = -n / m
     return x, 0
+
+
+def compute_radius(angle, p1, p2):
+    length = get_distance_between_vectors(p1, p2)
+    return length / (2 * sin(angle / 2))
+
+
+def compute_circle_arc(angle, radius):
+    return radius * angle
+
+
+def rotate_point_around_origin(point, angle):
+    x = point[0]
+    y = point[1]
+
+    new_x = x * cos(angle) - y * sin(angle)
+    new_y = x * sin(angle) + y * cos(angle)
+
+    return [new_x, new_y]

@@ -1,6 +1,7 @@
 string direction
 bool allowed
-float32 angle_start
+float32 angle_to_start
+float32 angle_at_start
 float32 start_x
 float32 start_y
 float32 angle_target

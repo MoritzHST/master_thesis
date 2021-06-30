@@ -25,7 +25,7 @@ import subprocess
 import os
 import sys
 from enum import Enum
-from std_msgs.msg import UInt8, Float64
+from std_msgs.msg import UInt8, Float64, Bool
 from thesis_detect.msg import CrossingDataArray
 
 class CoreNodeController():
@@ -50,6 +50,8 @@ class CoreNodeController():
         self.Launcher = Enum('Launcher', 'launch_camera_ex_calib launch_detect_lane launch_control_lane launch_detect_traffic_light launch_control_traffic_light launch_detect_crossing launch_control_crossing')
         self.CrossingSteps = Enum('CrossingSteps', 'idle drive_to_start drive_to_end finished')
         self.uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
+
+        self.pub_control_lane_active = rospy.Publisher('/control/lane/active', Bool, queue_size=1)
 
         self.current_step_crossing = self.CrossingSteps.idle.value
 
@@ -80,8 +82,14 @@ class CoreNodeController():
 
         rospy.loginfo("into %d", self.current_step_crossing)
 
+        if self.current_step_crossing == self.CrossingSteps.drive_to_start.value:
+            self.current_mode = self.CurrentMode.control_crossing.value
+            self.launch(self.Launcher.launch_detect_lane.value, False)
+            self.launch(self.Launcher.launch_control_lane.value, False)
+            self.pub_control_lane_active.publish(False)
+
         if self.current_step_crossing == self.CrossingSteps.finished.value:
-            #self.launch(self.Launcher.launch_control_crossing, False)
+            self.pub_control_lane_active.publish(True)
             self.current_mode = self.CurrentMode.lane_following.value
             self.is_triggered = True
             self.pub_vel.publish(self.MAX_VEL)
@@ -95,11 +103,8 @@ class CoreNodeController():
         self.is_triggered = True
 
     def cb_receive_crossing_data(self, crossing_msg):
-        if crossing_msg and crossing_msg.crossingData and not self.launch_control_crossing_launched:
-            self.current_mode = self.CurrentMode.control_crossing.value
-            rospy.loginfo("New trigger for control_crossing")
-            self.launch(self.Launcher.launch_detect_lane.value, False)
-            self.launch(self.Launcher.launch_control_lane.value, False)
+        pass
+
 
     def control_node(self):
         # lane_following
