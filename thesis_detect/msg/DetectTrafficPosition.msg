@@ -1,0 +1,3 @@
+string vehicle_id
+geometry_msgs/PoseWithCovariance pose
+geometry_msgs/TwistWithCovariance twist

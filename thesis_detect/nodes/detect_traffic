@@ -1,0 +1,228 @@
+#!/usr/bin/env python
+
+import rospy
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
+from math import pi, sqrt, acos
+import uuid
+from thesis_detect.msg import DetectTrafficPosition, DetectCollision
+from thesis_detect.math_util import *
+from thesis_detect.collision_enum import collision_enum
+import tf
+import numpy as np
+
+
+class DetectTraffic():
+    def __init__(self):
+        self.sub_odom = rospy.Subscriber('odom', Odometry, self.cb_get_odom, queue_size=1)
+        self.pub_direction = rospy.Publisher('/detect/traffic/position', DetectTrafficPosition, queue_size=1)
+        self.sub_direction = rospy.Subscriber('/detect/traffic/position', DetectTrafficPosition, self.cb_get_position,
+                                              queue_size=1)
+        self.sub_scan = rospy.Subscriber('scan', LaserScan, self.cb_get_scan)
+        self.pub_collision = rospy.Publisher('detect/traffic/collision', DetectCollision, queue_size=1)
+
+        self.pose = None
+        self.twist = None
+        self.id = uuid.uuid4().hex
+
+        self.threshold_intersection_range = 1.5
+        self.max_time_frame = 5
+        self.safe_path_distance = 3
+        self.max_angle_deviation = 0.2
+        self.safe_radius = 0.3
+
+        self.current_obstacles = np.array([])
+
+    def cb_get_odom(self, msg):
+        self.pose = msg.pose
+        self.twist = msg.twist
+
+        # publish message with current direction
+        new_msg = DetectTrafficPosition()
+        new_msg.vehicle_id = self.id + "1"
+        new_msg.pose = self.pose
+        new_msg.twist = self.twist
+
+        self.pub_direction.publish(new_msg)
+
+    def cb_get_position(self, msg):
+        if msg.vehicle_id == self.id:
+            return
+
+        self.compute_collision(msg)
+
+    def cb_get_scan(self, msg):
+        start = msg.angle_min
+        end = msg.angle_max
+        inc = msg.angle_increment
+        min_angle = msg.range_min
+        max_angle = msg.range_max
+
+        for i in range(0, len(msg.ranges)):
+            value = msg.ranges[i]
+            if min_angle <= value <= max_angle:
+                angle = start + i * inc
+                self.current_obstacles = np.append(self.current_obstacles, [angle, value])
+
+                if abs(self.twist.twist.angular.z - angle) < self.max_angle_deviation and value < self.safe_radius:
+                    # send collision message
+                    pass
+
+    def compute_collision(self, msg):
+        ###################
+        # self.twist.twist.linear.x = 0.2
+        # self.twist.twist.angular.z = 0.314
+        # self.pose.pose.position.x = 0
+        # self.pose.pose.position.y = 0
+
+        #msg.twist.twist.linear.x = 0.2
+        #msg.twist.twist.angular.z = 0.314
+        #msg.pose.pose.position.x = 0
+        #msg.pose.pose.position.y = 1
+        ###################
+        new_msg = DetectCollision()
+
+        new_msg.other_vehicle_pose = msg.pose
+        new_msg.other_vehicle_twist = msg.twist
+        new_msg.current_vehicle_pose = self.pose
+        new_msg.current_vehicle_twist = self.twist
+
+        # determine whether the vehicles collide with their current velocities
+        m1, cp1, dp1, r1 = self.compute_circle_data(self.twist, self.pose)
+        m2, cp2, dp2, r2 = self.compute_circle_data(msg.twist, msg.pose)
+        try:
+            d12 = sqrt(pow(m2[0] - m1[0], 2) + pow(m2[1] - m1[1], 2))
+            d0 = (pow(r1, 2) - pow(r2, 2) + pow(d12, 2)) / (2 * d12)
+            e0 = sqrt(pow(r1, 2) - pow(d0, 2))
+            m = np.array([((m2[0] - m1[0]) / d12), ((m2[1] - m1[1]) / d12)])
+            n = np.array([-((m2[1] - m1[1]) / d12), ((m2[0] - m1[0]) / d12)])
+
+            s = m1 + (d0 * m)
+            s1 = s + (e0 * n)
+            s2 = s - (e0 * n)
+
+            # move to origin
+            ocs1 = s1 - m1
+            ocs2 = s2 - m1
+            ocp1 = cp1 - m1
+
+            oos1 = s1 - m2
+            oos2 = s2 - m2
+            oop1 = cp2 - m2
+
+            # normalize to unit circle
+            nocs1 = ocs1 / r1
+            nocs2 = ocs2 / r1
+            nocp1 = ocp1 / r1
+
+            noos1 = oos1 / r2
+            noos2 = oos2 / r2
+            noop1 = oop1 / r2
+
+            radians_nocs1 = to_radians(nocs1)
+            radians_nocs2 = to_radians(nocs2)
+            radians_nocp1 = to_radians(nocp1)
+
+            radians_noos1 = to_radians(noos1)
+            radians_noos2 = to_radians(noos2)
+            radians_noop1 = to_radians(noop1)
+
+            c_distance1 = (radians_nocs1 - radians_nocp1) % (2 * pi)
+            c_distance2 = (radians_nocs2 - radians_nocp1) % (2 * pi)
+
+            o_distance1 = (radians_noos1 - radians_noop1) % (2 * pi)
+            o_distance2 = (radians_noos2 - radians_noop1) % (2 * pi)
+
+            # distance to intersection / collision point
+            c_real_distance1 = c_distance1 * r1
+            c_real_distance2 = c_distance2 * r1
+
+            o_real_distance1 = o_distance1 * r1
+            o_real_distance2 = o_distance2 * r1
+
+            if abs(c_real_distance1 - o_real_distance1) < self.threshold_intersection_range and c_real_distance1 < self.safe_path_distance:
+                new_msg.collision_type = collision_enum.intersection.value
+                new_msg.distance_till_collision = c_real_distance1
+                new_msg.time_till_collision = c_real_distance1 / self.twist.twist.linear.x
+            if abs(c_real_distance2 - o_real_distance2) < self.threshold_intersection_range and c_real_distance2 < self.safe_path_distance:
+                new_msg.collision_type = collision_enum.intersection.value
+                new_msg.distance_till_collision = c_real_distance2
+                new_msg.time_till_collision = c_real_distance2 / self.twist.twist.linear.x
+        except ValueError:
+            # Does not matter, they do not intersect and that's okay!
+            pass
+
+        # determine direction of other vehicle relative to current vehicle
+        quaternion = (
+            self.pose.pose.orientation.x,
+            self.pose.pose.orientation.y,
+            self.pose.pose.orientation.z,
+            self.pose.pose.orientation.w)
+        _, _, yaw = tf.transformations.euler_from_quaternion(quaternion)
+
+        new_cp1 = rotate_point_around_origin(cp1, - yaw)
+        new_cp2 = rotate_point_around_origin(cp2, - yaw)
+
+        poi = np.array([new_cp2]) - np.array([new_cp1])
+        poi = poi.flatten()
+        norm_poi = normalize_vector(poi)
+        norm_poi = norm_poi.flatten()
+        poi_angle = to_radians(norm_poi)
+        poi_distance = get_magnitude(poi)
+
+        # determine if a vehicle is too close
+        if abs(poi_angle) < pi / 4 and poi_distance < self.safe_radius:
+            # send collision message
+            quaternion = (
+                msg.pose.pose.orientation.x,
+                msg.pose.pose.orientation.y,
+                msg.pose.pose.orientation.z,
+                msg.pose.pose.orientation.w)
+            _, _, other_yaw = tf.transformations.euler_from_quaternion(quaternion)
+            new_msg.distance_till_collision = poi_distance
+            new_msg.time_till_collision = poi_distance / self.twist.twist.linear.x
+            if abs(yaw - other_yaw) < self.max_angle_deviation:
+                # same direction
+                new_msg.collision_type = collision_enum.vehicle_ahead.value
+            else:
+                new_msg.collision_type = collision_enum.immediate_collision.value
+
+        if new_msg.collision_type:
+            self.pub_collision.publish(new_msg)
+
+    def compute_circle_data(self, twist_msg, pose_msg):
+        linear_vel = twist_msg.twist.linear.x
+        angular_vel = twist_msg.twist.angular.z
+        if angular_vel == 0:
+            angular_vel = 0.00001
+        arc = linear_vel * self.max_time_frame
+        angle = angular_vel * self.max_time_frame
+        radius = compute_radius_by_arc_and_angle(arc, angle)
+        quaternion = (
+            pose_msg.pose.orientation.x,
+            pose_msg.pose.orientation.y,
+            pose_msg.pose.orientation.z,
+            pose_msg.pose.orientation.w)
+        _, _, yaw = tf.transformations.euler_from_quaternion(quaternion)
+        rotation_point = [radius, 0]
+        initial_rotation = yaw - (pi / 2)
+        if angular_vel < 0:
+            initial_rotation -= pi
+        new_rotation_point = rotate_point_around_origin(rotation_point, initial_rotation)
+        max_displacement = rotate_point_around_origin(new_rotation_point, angle)
+        current_position = [pose_msg.pose.position.x, pose_msg.pose.position.y]
+        _, dir_vector = get_vector_representation(new_rotation_point[0], new_rotation_point[1], current_position[0],
+                                                  current_position[1])
+        desired_position = max_displacement + dir_vector
+        middlepoint = dir_vector
+
+        return middlepoint, current_position, desired_position, radius
+
+    def main(self):
+        rospy.spin()
+
+
+if __name__ == '__main__':
+    rospy.init_node('detect_traffic')
+    node = DetectTraffic()
+    node.main()

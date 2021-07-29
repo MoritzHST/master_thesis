@@ -47,19 +47,19 @@ class DetectCrossing():
         self.image_top_left = (200, 600)
         self.image_top_right = (800, 600)
 
-        self.sub_masked_image_original = rospy.Subscriber('/camera/image_projected/compressed', CompressedImage,
+        self.sub_masked_image_original = rospy.Subscriber('camera/image_projected/compressed', CompressedImage,
                                                           self.cb_find_crossing, queue_size=1)
 
-        self.sub_odom = rospy.Subscriber('/odom', Odometry, self.cb_get_odom, queue_size=1)
+        self.sub_odom = rospy.Subscriber('odom', Odometry, self.cb_get_odom, queue_size=1)
 
-        self.pub_crossing = rospy.Publisher('/detect/crossing/data', CrossingDataArray, queue_size=1)
+        self.pub_crossing = rospy.Publisher('detect/crossing/data', CrossingDataArray, queue_size=1)
 
-        self.debug_image = rospy.Publisher('/mw/debug/compressed', CompressedImage, queue_size=1)
-        self.debug_image1 = rospy.Publisher('/mw/debug1/compressed', CompressedImage, queue_size=1)
-        self.debug_image2 = rospy.Publisher('/mw/debug2/compressed', CompressedImage, queue_size=1)
-        self.debug_image3 = rospy.Publisher('/mw/debug3/compressed', CompressedImage, queue_size=1)
-        self.debug_image4 = rospy.Publisher('/mw/debug4/compressed', CompressedImage, queue_size=1)
-        self.pub_max_vel = rospy.Publisher('/control/max_vel', Float64, queue_size=1)
+        self.debug_image = rospy.Publisher('mw/debug/compressed', CompressedImage, queue_size=1)
+        self.debug_image1 = rospy.Publisher('mw/debug1/compressed', CompressedImage, queue_size=1)
+        self.debug_image2 = rospy.Publisher('mw/debug2/compressed', CompressedImage, queue_size=1)
+        self.debug_image3 = rospy.Publisher('mw/debug3/compressed', CompressedImage, queue_size=1)
+        self.debug_image4 = rospy.Publisher('mw/debug4/compressed', CompressedImage, queue_size=1)
+        self.pub_max_vel = rospy.Publisher('control/max_vel', Float64, queue_size=1)
         self.crossing_reliabilities = []
         self.counter = 1
         self.center_point = (500, 600)

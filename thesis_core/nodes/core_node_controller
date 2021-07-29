@@ -33,25 +33,25 @@ class CoreNodeController():
         self.ros_package_path = os.path.dirname(os.path.realpath(__file__))
         self.ros_package_path = self.ros_package_path.replace('core/nodes', '')
 
-        self.sub_mode_control = rospy.Subscriber('/core/decided_mode', UInt8, self.cb_receive_mode, queue_size=1)
+        self.sub_mode_control = rospy.Subscriber('core/decided_mode', UInt8, self.cb_receive_mode, queue_size=1)
 
-        self.pub_vel = rospy.Publisher('/control/max_vel', Float64, queue_size=1)
+        self.pub_vel = rospy.Publisher('control/max_vel', Float64, queue_size=1)
 
-        self.sub_crossing_data = rospy.Subscriber('/detect/crossing/data', CrossingDataArray, self.cb_receive_crossing_data, queue_size=1)
-        self.sub_crossing_stamped = rospy.Subscriber('/detect/crossing_stamped', UInt8, self.cb_crossing_stamped, queue_size=1)
+        self.sub_crossing_data = rospy.Subscriber('detect/crossing/data', CrossingDataArray, self.cb_receive_crossing_data, queue_size=1)
+        self.sub_crossing_stamped = rospy.Subscriber('detect/crossing_stamped', UInt8, self.cb_crossing_stamped, queue_size=1)
 
         self.CurrentMode = Enum('CurrentMode', 'idle lane_following traffic_light control_crossing')
 
         # publishes orders
-        self.pub_traffic_light_order = rospy.Publisher('/detect/traffic_light_order', UInt8, queue_size=1)
+        self.pub_traffic_light_order = rospy.Publisher('detect/traffic_light_order', UInt8, queue_size=1)
 
-        self.pub_mode_return = rospy.Publisher('/core/returned_mode', UInt8, queue_size=1)
+        self.pub_mode_return = rospy.Publisher('core/returned_mode', UInt8, queue_size=1)
 
-        self.Launcher = Enum('Launcher', 'launch_camera_ex_calib launch_detect_lane launch_control_lane launch_detect_traffic_light launch_control_traffic_light launch_detect_crossing launch_control_crossing')
+        self.Launcher = Enum('Launcher', 'launch_camera_ex_calib launch_detect_lane launch_control_lane launch_detect_traffic_light launch_control_traffic_light launch_detect_crossing launch_control_crossing launch_detect_traffic')
         self.CrossingSteps = Enum('CrossingSteps', 'idle drive_to_start drive_to_end finished')
         self.uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
 
-        self.pub_control_lane_active = rospy.Publisher('/control/lane/active', Bool, queue_size=1)
+        self.pub_control_lane_active = rospy.Publisher('control/lane/active', Bool, queue_size=1)
 
         self.current_step_crossing = self.CrossingSteps.idle.value
 
@@ -61,6 +61,7 @@ class CoreNodeController():
         self.launch_detect_traffic_light_launched = False
         self.launch_detect_crossing_launched = False
         self.launch_control_crossing_launched = False
+        self.launch_detect_traffic_launched = False
 
         self.current_mode = self.CurrentMode.idle.value
 
@@ -118,6 +119,7 @@ class CoreNodeController():
             self.launch(self.Launcher.launch_control_lane.value, True)
             self.launch(self.Launcher.launch_detect_crossing.value, True)
             self.launch(self.Launcher.launch_control_crossing.value, True)
+            self.launch(self.Launcher.launch_detect_traffic, True)
 
         self.is_triggered = False
 
@@ -212,6 +214,22 @@ class CoreNodeController():
                 if self.launch_control_crossing_launched:
                     self.launch_control_crossing_launched = False
                     self.launch_control_crossing.shutdown()
+                else:
+                    pass
+
+        elif launch_num == self.Launcher.launch_detect_traffic.value:
+            if is_start:
+                if not self.launch_detect_traffic_launched:
+                    self.launch_detect_traffic = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_detect_traffic = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "detect/launch/detect_traffic.launch"])
+                    self.launch_detect_traffic_launched = True
+                    self.launch_detect_traffic.start()
+                else:
+                    pass
+            else:
+                if self.launch_detect_traffic_launched:
+                    self.launch_detect_traffic_launched = False
+                    self.launch_detect_traffic.shutdown()
                 else:
                     pass
 

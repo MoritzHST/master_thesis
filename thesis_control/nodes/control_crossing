@@ -18,9 +18,9 @@ class ControlCrossing():
     def __init__(self):
         self.init()
         self.desired_theta = 0.0
-        self.pub_crossing_step = rospy.Publisher('/detect/crossing_stamped', UInt8, queue_size=1)
+        self.pub_crossing_step = rospy.Publisher('detect/crossing_stamped', UInt8, queue_size=1)
 
-        self.sub_odom = rospy.Subscriber("/odom", Odometry, self.cb_odom, queue_size=1)
+        self.sub_odom = rospy.Subscriber("odom", Odometry, self.cb_odom, queue_size=1)
         self.pub_navigation = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 
         self.CrossingSteps = Enum('CrossingSteps', 'idle drive_to_start drive_to_end finished')
@@ -34,7 +34,7 @@ class ControlCrossing():
         self.current_theta = 0.0
 
     def init(self):
-        self.sub_crossing_data = rospy.Subscriber('/detect/crossing/data', CrossingDataArray, self.cb_get_data,
+        self.sub_crossing_data = rospy.Subscriber('detect/crossing/data', CrossingDataArray, self.cb_get_data,
                                                   queue_size=1)
         self.data = None
         self.relevant_msg = None

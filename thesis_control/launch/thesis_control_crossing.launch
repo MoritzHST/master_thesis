@@ -3,6 +3,6 @@
 
   <!-- lane control -->
   <node pkg="thesis_control" type="control_crossing" name="control_crossing" output="screen">
-    <remap from="/control/cmd_vel" to="/cmd_vel" />
+    <remap from="control/cmd_vel" to="cmd_vel" />
   </node>
 </launch>

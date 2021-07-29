@@ -48,25 +48,25 @@ class ImageProjection():
 
         if self.sub_image_type == "compressed":
             # subscribes compressed image
-            self.sub_image_original = rospy.Subscriber('/camera/image_input/compressed', CompressedImage, self.cbImageProjection, queue_size=1)
+            self.sub_image_original = rospy.Subscriber('camera/image_input/compressed', CompressedImage, self.cbImageProjection, queue_size=1)
         elif self.sub_image_type == "raw":
             # subscribes raw image
-            self.sub_image_original = rospy.Subscriber('/camera/image_input', Image, self.cbImageProjection, queue_size=1)
+            self.sub_image_original = rospy.Subscriber('camera/image_input', Image, self.cbImageProjection, queue_size=1)
 
         if self.pub_image_type == "compressed":
             # publishes ground-project image in compressed type
-            self.pub_image_projected = rospy.Publisher('/camera/image_output/compressed', CompressedImage, queue_size=1)
+            self.pub_image_projected = rospy.Publisher('camera/image_output/compressed', CompressedImage, queue_size=1)
         elif self.pub_image_type == "raw":
             # publishes ground-project image in raw type
-            self.pub_image_projected = rospy.Publisher('/camera/image_output', Image, queue_size=1)
+            self.pub_image_projected = rospy.Publisher('camera/image_output', Image, queue_size=1)
 
         if self.is_calibration_mode == True:
             if self.pub_image_type == "compressed":
                 # publishes calibration image in compressed type
-                self.pub_image_calib = rospy.Publisher('/camera/image_calib/compressed', CompressedImage, queue_size=1)
+                self.pub_image_calib = rospy.Publisher('camera/image_calib/compressed', CompressedImage, queue_size=1)
             elif self.pub_image_type == "raw":
                 # publishes calibration image in raw type
-                self.pub_image_calib = rospy.Publisher('/camera/image_calib', Image, queue_size=1)
+                self.pub_image_calib = rospy.Publisher('camera/image_calib', Image, queue_size=1)
 
         self.cvBridge = CvBridge()
 

@@ -55,45 +55,45 @@ class DetectLane():
 
         if self.sub_image_type == "compressed":
             # subscribes compressed image
-            self.sub_image_original = rospy.Subscriber('/detect/image_input/compressed', CompressedImage,
+            self.sub_image_original = rospy.Subscriber('detect/image_input/compressed', CompressedImage,
                                                        self.cb_find_lane, queue_size=1)
         elif self.sub_image_type == "raw":
             # subscribes raw image
-            self.sub_image_original = rospy.Subscriber('/detect/image_input', Image, self.cb_find_lane, queue_size=1)
+            self.sub_image_original = rospy.Subscriber('detect/image_input', Image, self.cb_find_lane, queue_size=1)
 
         if self.pub_image_type == "compressed":
             # publishes lane image in compressed type 
-            self.pub_image_lane = rospy.Publisher('/detect/image_output/compressed', CompressedImage, queue_size=1)
+            self.pub_image_lane = rospy.Publisher('detect/image_output/compressed', CompressedImage, queue_size=1)
         elif self.pub_image_type == "raw":
             # publishes lane image in raw type
-            self.pub_image_lane = rospy.Publisher('/detect/image_output', Image, queue_size=1)
+            self.pub_image_lane = rospy.Publisher('detect/image_output', Image, queue_size=1)
 
         if self.pub_image_type == "compressed":
             # publishes lane image in compressed type
-            self.pub_image_lane_mask = rospy.Publisher('/detect/image_output/lane_mask/compressed', CompressedImage, queue_size=1)
+            self.pub_image_lane_mask = rospy.Publisher('detect/image_output/lane_mask/compressed', CompressedImage, queue_size=1)
         elif self.pub_image_type == "raw":
             # publishes lane image in raw type
-            self.pub_image_lane_mask = rospy.Publisher('/detect/image_output/lane_mask', Image, queue_size=1)
+            self.pub_image_lane_mask = rospy.Publisher('detect/image_output/lane_mask', Image, queue_size=1)
 
         if self.is_calibration_mode == True:
             if self.pub_image_type == "compressed":
                 # publishes lane image in compressed type 
-                self.pub_image_white_lane = rospy.Publisher('/detect/image_output_sub1/compressed', CompressedImage,
+                self.pub_image_white_lane = rospy.Publisher('detect/image_output_sub1/compressed', CompressedImage,
                                                             queue_size=1)
-                self.pub_image_yellow_lane = rospy.Publisher('/detect/image_output_sub2/compressed', CompressedImage,
+                self.pub_image_yellow_lane = rospy.Publisher('detect/image_output_sub2/compressed', CompressedImage,
                                                              queue_size=1)
             elif self.pub_image_type == "raw":
                 # publishes lane image in raw type
-                self.pub_image_white_lane = rospy.Publisher('/detect/image_output_sub1', Image, queue_size=1)
-                self.pub_image_yellow_lane = rospy.Publisher('/detect/image_output_sub2', Image, queue_size=1)
+                self.pub_image_white_lane = rospy.Publisher('detect/image_output_sub1', Image, queue_size=1)
+                self.pub_image_yellow_lane = rospy.Publisher('detect/image_output_sub2', Image, queue_size=1)
 
-        self.pub_lane = rospy.Publisher('/detect/lane', Float64, queue_size=1)
+        self.pub_lane = rospy.Publisher('detect/lane', Float64, queue_size=1)
 
         # subscribes state : yellow line reliability
-        self.pub_yellow_line_reliability = rospy.Publisher('/detect/yellow_line_reliability', UInt8, queue_size=1)
+        self.pub_yellow_line_reliability = rospy.Publisher('detect/yellow_line_reliability', UInt8, queue_size=1)
 
         # subscribes state : white line reliability
-        self.pub_white_line_reliability = rospy.Publisher('/detect/white_line_reliability', UInt8, queue_size=1)
+        self.pub_white_line_reliability = rospy.Publisher('detect/white_line_reliability', UInt8, queue_size=1)
 
         self.cvBridge = CvBridge()
 

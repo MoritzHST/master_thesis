@@ -63,34 +63,34 @@ class DetectTrafficLight():
         
         if self.sub_image_type == "compressed":
             # subscribes compressed image
-            self.sub_image_original = rospy.Subscriber('/detect/image_input/compressed', CompressedImage, self.cbGetImage, queue_size = 1)
+            self.sub_image_original = rospy.Subscriber('detect/image_input/compressed', CompressedImage, self.cbGetImage, queue_size = 1)
         elif self.sub_image_type == "raw":
             # subscribes raw image
-            self.sub_image_original = rospy.Subscriber('/detect/image_input', Image, self.cbGetImage, queue_size = 1)
+            self.sub_image_original = rospy.Subscriber('detect/image_input', Image, self.cbGetImage, queue_size = 1)
  
         if self.pub_image_type == "compressed":
             # publishes compensated image in compressed type 
-            self.pub_image_traffic_light = rospy.Publisher('/detect/image_output/compressed', CompressedImage, queue_size = 1)
+            self.pub_image_traffic_light = rospy.Publisher('detect/image_output/compressed', CompressedImage, queue_size = 1)
         elif self.pub_image_type == "raw":
             # publishes compensated image in raw type
-            self.pub_image_traffic_light = rospy.Publisher('/detect/image_output', Image, queue_size = 1)
+            self.pub_image_traffic_light = rospy.Publisher('detect/image_output', Image, queue_size = 1)
 
         if self.is_calibration_mode == True:
             if self.pub_image_type == "compressed":
                 # publishes light image in compressed type 
-                self.pub_image_red_light = rospy.Publisher('/detect/image_output_sub1/compressed', CompressedImage, queue_size = 1)
-                self.pub_image_yellow_light = rospy.Publisher('/detect/image_output_sub2/compressed', CompressedImage, queue_size = 1)
-                self.pub_image_green_light = rospy.Publisher('/detect/image_output_sub3/compressed', CompressedImage, queue_size = 1)
+                self.pub_image_red_light = rospy.Publisher('detect/image_output_sub1/compressed', CompressedImage, queue_size = 1)
+                self.pub_image_yellow_light = rospy.Publisher('detect/image_output_sub2/compressed', CompressedImage, queue_size = 1)
+                self.pub_image_green_light = rospy.Publisher('detect/image_output_sub3/compressed', CompressedImage, queue_size = 1)
             elif self.pub_image_type == "raw":
                 # publishes light image in raw type
-                self.pub_image_red_light = rospy.Publisher('/detect/image_output_sub1', Image, queue_size = 1)
-                self.pub_image_yellow_light = rospy.Publisher('/detect/image_output_sub2', Image, queue_size = 1)
-                self.pub_image_green_light = rospy.Publisher('/detect/image_output_sub3', Image, queue_size = 1)
+                self.pub_image_red_light = rospy.Publisher('detect/image_output_sub1', Image, queue_size = 1)
+                self.pub_image_yellow_light = rospy.Publisher('detect/image_output_sub2', Image, queue_size = 1)
+                self.pub_image_green_light = rospy.Publisher('detect/image_output_sub3', Image, queue_size = 1)
 
-        self.sub_traffic_light_finished = rospy.Subscriber('/control/traffic_light_finished', UInt8, self.cbTrafficLightFinished, queue_size = 1)
-        self.pub_traffic_light_return = rospy.Publisher('/detect/traffic_light_stamped', UInt8, queue_size=1)
-        self.pub_parking_start = rospy.Publisher('/control/traffic_light_start', UInt8, queue_size = 1)
-        self.pub_max_vel = rospy.Publisher('/control/max_vel', Float64, queue_size = 1)
+        self.sub_traffic_light_finished = rospy.Subscriber('control/traffic_light_finished', UInt8, self.cbTrafficLightFinished, queue_size = 1)
+        self.pub_traffic_light_return = rospy.Publisher('detect/traffic_light_stamped', UInt8, queue_size=1)
+        self.pub_parking_start = rospy.Publisher('control/traffic_light_start', UInt8, queue_size = 1)
+        self.pub_max_vel = rospy.Publisher('control/max_vel', Float64, queue_size = 1)
 
         self.StepOfTrafficLight = Enum('StepOfTrafficLight', 'searching_traffic_light searching_green_light searching_yellow_light searching_red_light waiting_green_light pass_traffic_light')
 

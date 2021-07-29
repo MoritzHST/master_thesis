@@ -40,17 +40,17 @@ class ImageCompensation():
 
         if self.sub_image_type == "compressed":
             # subscribes compressed image 
-            self.sub_image_original = rospy.Subscriber('/camera/image_input/compressed', CompressedImage, self.cbImageCompensation, queue_size = 1)
+            self.sub_image_original = rospy.Subscriber('camera/image_input/compressed', CompressedImage, self.cbImageCompensation, queue_size = 1)
         elif self.sub_image_type == "raw":
             # subscribes raw image 
-            self.sub_image_original = rospy.Subscriber('/camera/image_input', Image, self.cbImageCompensation, queue_size = 1)
+            self.sub_image_original = rospy.Subscriber('camera/image_input', Image, self.cbImageCompensation, queue_size = 1)
 
         if self.pub_image_type == "compressed":
             # publishes compensated image in compressed type 
-            self.pub_image_compensated = rospy.Publisher('/camera/image_output/compressed', CompressedImage, queue_size = 1)
+            self.pub_image_compensated = rospy.Publisher('camera/image_output/compressed', CompressedImage, queue_size = 1)
         elif self.pub_image_type == "raw":
             # publishes compensated image in raw type
-            self.pub_image_compensated = rospy.Publisher('/camera/image_output', Image, queue_size = 1)
+            self.pub_image_compensated = rospy.Publisher('camera/image_output', Image, queue_size = 1)
 
         self.cvBridge = CvBridge()
 

@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   rospy
   std_msgs
+  geometry_msgs
   message_generation
 )
 
@@ -34,11 +35,14 @@ add_message_files(
   FILES
   CrossingData.msg
   CrossingDataArray.msg
+  DetectTrafficPosition.msg
+  DetectCollision.msg
 )
 
 generate_messages(
   DEPENDENCIES
   std_msgs
+  geometry_msgs
 )
 ################################################################################
 # Declare catkin specific configuration to be passed to dependent projects

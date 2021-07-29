@@ -1,5 +1,5 @@
 import numpy as np
-from math import pi, sin, cos
+from math import pi, sin, cos, sqrt, acos
 import copy
 
 
@@ -111,8 +111,16 @@ def compute_radius(angle, p1, p2):
     return length / (2 * sin(angle / 2))
 
 
+def compute_radius_by_arc_and_angle(arc, angle):
+    return abs(arc / angle)
+
+
 def compute_circle_arc(angle, radius):
     return radius * angle
+
+
+def compute_side_with_sws(a, beta, c):
+    return sqrt((a * a) + (c * c) - (2 * a * c * cos(beta)))
 
 
 def rotate_point_around_origin(point, angle):
@@ -123,3 +131,15 @@ def rotate_point_around_origin(point, angle):
     new_y = x * sin(angle) + y * cos(angle)
 
     return [new_x, new_y]
+
+
+def to_radians(point):
+    #takes a point on unit circle and return the corrsponding radians
+    x = point[0]
+    y = point[1]
+
+    radians = acos(x)
+    if y < 0:
+        radians = pi + (pi - radians)
+
+    return radians

@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="thesis_detect" type="detect_traffic" name="detect_traffic" output="screen"/>
+</launch>

@@ -28,10 +28,10 @@ from std_msgs.msg import UInt8
 class CoreModeDecider():
     def __init__(self):
         # subscribes
-        self.sub_returned_mode = rospy.Subscriber('/core/returned_mode', UInt8, self.cb_returned_mode, queue_size=1)
+        self.sub_returned_mode = rospy.Subscriber('core/returned_mode', UInt8, self.cb_returned_mode, queue_size=1)
 
         # publishes
-        self.pub_decided_mode = rospy.Publisher('/core/decided_mode', UInt8, queue_size=1)
+        self.pub_decided_mode = rospy.Publisher('core/decided_mode', UInt8, queue_size=1)
 
         self.InvokedObject = Enum('InvokedObject', 'traffic_light')
         self.CurrentMode = Enum('CurrentMode', 'lane_following traffic_light')
