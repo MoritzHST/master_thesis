@@ -1,0 +1,7 @@
+int32 collision_type
+geometry_msgs/PoseWithCovariance other_vehicle_pose
+geometry_msgs/TwistWithCovariance other_vehicle_twist
+geometry_msgs/PoseWithCovariance current_vehicle_pose
+geometry_msgs/TwistWithCovariance current_vehicle_twist
+int32 time_till_collision
+float32 distance_till_collision

@@ -1,0 +1,243 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+################################################################################
+# Copyright 2018 ROBOTIS CO., LTD.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
+# Authors: Leon Jung, [AuTURBO] Kihoon Kim (https://github.com/auturbo), Gilbert
+
+import rospy, roslaunch
+import numpy as np
+import subprocess
+import os
+import sys
+from enum import Enum
+from std_msgs.msg import UInt8, Float64, Bool
+from thesis_detect.msg import CrossingDataArray
+
+class CoreNodeController():
+    def __init__(self):
+        self.ros_package_path = os.path.dirname(os.path.realpath(__file__))
+        self.ros_package_path = self.ros_package_path.replace('core/nodes', '')
+
+        self.sub_mode_control = rospy.Subscriber('core/decided_mode', UInt8, self.cb_receive_mode, queue_size=1)
+
+        self.pub_vel = rospy.Publisher('control/max_vel', Float64, queue_size=1)
+
+        self.sub_crossing_data = rospy.Subscriber('detect/crossing/data', CrossingDataArray, self.cb_receive_crossing_data, queue_size=1)
+        self.sub_crossing_stamped = rospy.Subscriber('detect/crossing_stamped', UInt8, self.cb_crossing_stamped, queue_size=1)
+
+        self.CurrentMode = Enum('CurrentMode', 'idle lane_following traffic_light control_crossing')
+
+        # publishes orders
+        self.pub_traffic_light_order = rospy.Publisher('detect/traffic_light_order', UInt8, queue_size=1)
+
+        self.pub_mode_return = rospy.Publisher('core/returned_mode', UInt8, queue_size=1)
+
+        self.Launcher = Enum('Launcher', 'launch_camera_ex_calib launch_detect_lane launch_control_lane launch_detect_traffic_light launch_control_traffic_light launch_detect_crossing launch_control_crossing launch_detect_traffic')
+        self.CrossingSteps = Enum('CrossingSteps', 'idle drive_to_start drive_to_end finished')
+        self.uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
+
+        self.pub_control_lane_active = rospy.Publisher('control/lane/active', Bool, queue_size=1)
+
+        self.current_step_crossing = self.CrossingSteps.idle.value
+
+        self.launch_camera_launched = False
+        self.launch_detect_lane_launched = False
+        self.launch_control_lane_launched = False
+        self.launch_detect_traffic_light_launched = False
+        self.launch_detect_crossing_launched = False
+        self.launch_control_crossing_launched = False
+        self.launch_detect_traffic_launched = False
+
+        self.current_mode = self.CurrentMode.idle.value
+
+        self.MAX_VEL = 0.12
+
+        self.is_triggered = False
+
+        loop_rate = rospy.Rate(10) # 10hz
+        while not rospy.is_shutdown():
+            if self.is_triggered:
+                self.control_node()
+
+            loop_rate.sleep()
+
+    def cb_crossing_stamped(self, msg):
+        rospy.loginfo("Crossing Step changed from %d", self.current_step_crossing)
+
+        self.current_step_crossing = msg.data
+
+        rospy.loginfo("into %d", self.current_step_crossing)
+
+        if self.current_step_crossing == self.CrossingSteps.drive_to_start.value:
+            self.current_mode = self.CurrentMode.control_crossing.value
+            self.launch(self.Launcher.launch_detect_lane.value, False)
+            self.launch(self.Launcher.launch_control_lane.value, False)
+            self.pub_control_lane_active.publish(False)
+
+        if self.current_step_crossing == self.CrossingSteps.finished.value:
+            self.pub_control_lane_active.publish(True)
+            self.current_mode = self.CurrentMode.lane_following.value
+            self.is_triggered = True
+            self.pub_vel.publish(self.MAX_VEL)
+
+
+
+    def cb_receive_mode(self, mode_msg):
+        rospy.loginfo("starts the progress with %d", mode_msg.data)
+
+        self.current_mode = mode_msg.data
+        self.is_triggered = True
+
+    def cb_receive_crossing_data(self, crossing_msg):
+        pass
+
+
+    def control_node(self):
+        # lane_following
+        if self.current_mode == self.CurrentMode.lane_following.value:
+            rospy.loginfo("New trigger for lane_following")
+
+            self.launch(self.Launcher.launch_camera_ex_calib.value, True)
+
+            self.launch(self.Launcher.launch_detect_lane.value, True)
+            self.launch(self.Launcher.launch_detect_traffic_light.value, True)
+            self.launch(self.Launcher.launch_control_lane.value, True)
+            self.launch(self.Launcher.launch_detect_crossing.value, True)
+            self.launch(self.Launcher.launch_control_crossing.value, True)
+            self.launch(self.Launcher.launch_detect_traffic, True)
+
+        self.is_triggered = False
+
+    def launch(self, launch_num, is_start):
+        if launch_num == self.Launcher.launch_camera_ex_calib.value:
+            if is_start:
+                if not self.launch_camera_launched:
+                    self.launch_camera = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_camera = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "camera/launch/extrinsic_camera_calibration.launch"])
+                    self.launch_camera_launched = True
+                    self.launch_camera.start()
+                else:
+                    pass
+            else:
+                if self.launch_camera_launched == True:
+                    self.launch_camera_launched = False
+                    self.launch_camera.shutdown()
+                else:
+                    pass
+
+        elif launch_num == self.Launcher.launch_detect_lane.value:
+            if is_start:
+                if not self.launch_detect_lane_launched:
+                    self.launch_detect_lane = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_detect_lane = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "detect/launch/detect_lane.launch"])
+                    self.launch_detect_lane_launched = True
+                    self.launch_detect_lane.start()
+                else:
+                    pass
+            else:
+                if self.launch_detect_lane_launched == True:
+                    self.launch_detect_lane_launched = False
+                    self.launch_detect_lane.shutdown()
+                else:
+                    pass
+        elif launch_num == self.Launcher.launch_control_lane.value:
+            if is_start:
+                if not self.launch_control_lane_launched:
+                    self.launch_control_lane = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_control_lane = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "control/launch/thesis_control_lane.launch"])
+                    self.launch_control_lane_launched = True
+                    self.launch_control_lane.start()
+                else:
+                    pass
+            else:
+                if self.launch_control_lane_launched == True:
+                    self.launch_control_lane_launched = False
+                    self.launch_control_lane.shutdown()
+                else:
+                    pass
+
+        elif launch_num == self.Launcher.launch_detect_traffic_light.value:
+            if is_start:
+                if not self.launch_detect_traffic_light_launched:
+                    self.launch_detect_traffic_light = roslaunch.scriptapi.ROSLaunch()
+                    #self.launch_detect_traffic_light = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "turtlebot3_autorace_detect/launch/detect_traffic_light.launch"])
+                    self.launch_detect_traffic_light_launched = True
+                    self.launch_detect_traffic_light.start()
+                else:
+                    pass
+            else:
+                if self.launch_detect_traffic_light_launched:
+                    self.launch_detect_traffic_light_launched = False
+                    self.launch_detect_traffic_light.shutdown()
+                else:
+                    pass
+        elif launch_num == self.Launcher.launch_detect_crossing.value:
+            if is_start:
+                if not self.launch_detect_crossing_launched:
+                    self.launch_detect_crossing = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_detect_crossing = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "detect/launch/detect_crossing.launch"])
+                    self.launch_detect_crossing_launched = True
+                    self.launch_detect_crossing.start()
+                else:
+                    pass
+            else:
+                if self.launch_detect_crossing_launched:
+                    self.launch_detect_crossing_launched = False
+                    self.launch_detect_crossing.shutdown()
+                else:
+                    pass
+        elif launch_num == self.Launcher.launch_control_crossing.value:
+            if is_start:
+                if not self.launch_control_crossing_launched:
+                    self.launch_control_crossing = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_control_crossing = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "control/launch/thesis_control_crossing.launch"])
+                    self.launch_control_crossing_launched = True
+                    self.launch_control_crossing.start()
+                else:
+                    pass
+            else:
+                if self.launch_control_crossing_launched:
+                    self.launch_control_crossing_launched = False
+                    self.launch_control_crossing.shutdown()
+                else:
+                    pass
+
+        elif launch_num == self.Launcher.launch_detect_traffic.value:
+            if is_start:
+                if not self.launch_detect_traffic_launched:
+                    self.launch_detect_traffic = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_detect_traffic = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "detect/launch/detect_traffic.launch"])
+                    self.launch_detect_traffic_launched = True
+                    self.launch_detect_traffic.start()
+                else:
+                    pass
+            else:
+                if self.launch_detect_traffic_launched:
+                    self.launch_detect_traffic_launched = False
+                    self.launch_detect_traffic.shutdown()
+                else:
+                    pass
+
+
+    def main(self):
+        rospy.spin()
+
+if __name__ == '__main__':
+    rospy.init_node('core_node_controller')
+    node = CoreNodeController()
+    node.main()

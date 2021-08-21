@@ -1,0 +1,10 @@
+string direction
+bool allowed
+float32 angle_to_start
+float32 angle_at_start
+float32 start_x
+float32 start_y
+float32 angle_target
+float32 angular_distance_target
+float32 target_x
+float32 target_y
