@@ -1,0 +1,9 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+  \PYG{n}{int32} \PYG{n}{collision\PYGZus{}type}
+  \PYG{n}{geometry\PYGZus{}msgs}\PYG{o}{/}\PYG{n}{PoseWithCovariance} \PYG{n}{other\PYGZus{}vehicle\PYGZus{}pose}
+  \PYG{n}{geometry\PYGZus{}msgs}\PYG{o}{/}\PYG{n}{TwistWithCovariance} \PYG{n}{other\PYGZus{}vehicle\PYGZus{}twist}
+  \PYG{n}{geometry\PYGZus{}msgs}\PYG{o}{/}\PYG{n}{PoseWithCovariance} \PYG{n}{current\PYGZus{}vehicle\PYGZus{}pose}
+  \PYG{n}{geometry\PYGZus{}msgs}\PYG{o}{/}\PYG{n}{TwistWithCovariance} \PYG{n}{current\PYGZus{}vehicle\PYGZus{}twist}
+  \PYG{n}{int32} \PYG{n}{time\PYGZus{}till\PYGZus{}collision}
+  \PYG{n}{float32} \PYG{n}{distance\PYGZus{}till\PYGZus{}collision}
+\end{Verbatim}

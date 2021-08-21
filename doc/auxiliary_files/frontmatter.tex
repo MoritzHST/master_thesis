@@ -1,0 +1,142 @@
+%--------------------------------------------------------------
+%                       Das Deckblatt
+%--------------------------------------------------------------
+\begin{titlingpage*}
+    \theLogos
+    \center
+    \textsc{\large \theModul}
+    \noindent{\rule{\linewidth}{0.75pt}}\\ [0.6cm]
+    \textbf{\Large \thetitle}\ \\[0.3cm]
+    \noindent{\rule{\linewidth}{0.75pt}}
+    
+    \vspace{0.3cm}
+    
+    \theFaculty \\
+    \theInstitut\\[0.5cm]
+
+    eingereicht am \thedate\\
+    
+    \vspace{5.5cm}
+    
+    \begin{tabularx}{\linewidth}{ 
+   >{\raggedright\arraybackslash}X 
+   >{\raggedleft\arraybackslash}X}
+        \begin{tabular}[c]{@{}l@{}}
+            \textit{Autor:}\\
+            \theauthor\\[0.7em]
+            \textit{Matrikelnummer:}\\
+            \theStudentID\\[0.7em]
+            \textit{Studiengang:}\\
+            \theCourse
+        \end{tabular} & \multicolumn{1}{l}{
+            \begin{tabular}[c]{@{}l@{}}
+                \textit{Erstgutachter:}\\
+                \theSupervisor\\[0.7em]
+                \textit{Zweitgutachter:}\\
+                \theSecSupervisor
+            \end{tabular}
+        }
+    \end{tabularx}
+
+\end{titlingpage*}
+\blankpage
+
+%--------------------------------------------------------------
+%                           Danksagung
+%--------------------------------------------------------------
+\aliaspagestyle{chapter}{empty}
+\pdfbookmark[0]{Danksagung}{chap:danksagung}
+\chapter*{Danksagung}
+\thispagestyle{empty}
+\input{preliminary/danksagung}
+\blankpage
+
+%--------------------------------------------------------------
+%                       Zusammenfassung
+%--------------------------------------------------------------
+\aliaspagestyle{chapter}{blackchapter}
+\pagenumbering{Roman}
+
+\pdfbookmark[0]{Zusammenfassung}{chap:zusammenfassung}
+\chapter*{Zusammenfassung}
+\begin{center}
+    \vspace{-2ex}
+    \SingleSpacing
+    Masterthesis im Studiengang Informatik\\
+    \theInstitut\\
+    \theFaculty\\
+    \ \\
+    \theauthor\\
+    \ \\
+    \textbf{\thetitle}
+\end{center}
+
+\input{preliminary/zusammenfassung}
+
+\vfill
+
+\begin{tabular}{ll}
+	    Erstgutachter: & \theSupervisor \\
+		Zweitgutachter: & \theSecSupervisor\\
+\end{tabular} \par
+%--------------------------------------------------------------
+%                           Abstract
+%--------------------------------------------------------------
+\pdfbookmark[0]{Abstract}{chap:abstract}
+\chapter*{Abstract}
+
+\begin{otherlanguage}{british}
+    \begin{center}
+        \vspace{-2ex}
+        \SingleSpacing
+        Master thesis in the course of computer science\\
+        University of Applied Sciences Stralsund\\
+        Faculty of Electrical Engineering and Computer Science\\
+        \ \\
+        \theauthor\\
+        \ \\
+        \textbf{\thetitle}
+    \end{center}
+    
+    \input{preliminary/abstract}
+    
+    \vfill
+    \begin{tabular}{ll}
+	    First supervisor: & \theSupervisor \\
+		Second supervisor: & \theSecSupervisor\\
+    \end{tabular}
+\end{otherlanguage}
+\cleardoublepage
+\blankpage
+\cleartoevenpage[\thispagestyle{empty}]
+%--------------------------------------------------------------
+%                       Die Verzeichnisse
+%--------------------------------------------------------------
+\pdfbookmark[0]{Inhaltsverzeichnis}{chap:inhalt}
+\renewcommand{\contentsname}{Inhaltsverzeichnis}
+\maxtocdepth{subsection}
+\tableofcontents*
+\addtocontents{toc}{\protect\enlargethispage{-1\baselineskip}}
+\cleardoublepage
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Abbildungsverzeichnis}
+\listoffigures*
+\cleardoublepage
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Tabellenverzeichnis}
+\listoftables*
+\cleardoublepage
+
+\input{preliminary/abkuerzungsverzeichnis.tex}
+\cleardoublepage
+
+%--------------------------------------------------------------
+%                           Das Glossar
+%--------------------------------------------------------------
+\input{preliminary/glossar.tex}
+\cleardoublepage
+\savepagenumber
+
+\blankpage

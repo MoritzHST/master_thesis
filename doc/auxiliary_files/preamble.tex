@@ -1,0 +1,190 @@
+%*******	 Package-Import		*******%
+%Sprache
+\usepackage[main=ngerman]{babel} %Sprache
+\usepackage[utf8]{inputenc} %direkte Eingabe von Umlauten
+\usepackage[T1]{fontenc} %Schriftencoding
+\usepackage{hyphenat} %Silbentrennung
+
+%Schrift
+\usepackage{palatino} 
+\usepackage{microtype} %typographische Perfektion
+\usepackage{lmodern} %modernes Schriftbild
+\usepackage{pifont}
+
+%Bilder/Graphiken/Listings/Gleichungen
+\usepackage{graphicx} %einbinden von Bildern/Grafiken
+\usepackage{epstopdf}
+\usepackage[section]{placeins}
+\usepackage[hang]{caption}
+%\usepackage{subcaption}
+%\usepackage{nicefrac}
+%\usepackage{listings} %Codeblöcke
+\usepackage{minted}
+\usepackage{mathtools} %Gleichungen
+\usepackage{amsmath} % mehrzeilige Gleichungen
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{adjustbox}
+
+%Verzeichnisse
+\usepackage[printonlyused]{acronym}
+\usepackage{datatool} %zum sortieren eigenes Glossar
+
+%Zitieren/Quellenangaben/Verweise
+\usepackage[autostyle=try, style=german]{csquotes}
+\usepackage[style=ieee, language=ngerman, block=ragged]{biblatex}
+%\usepackage{url} %URL Angabe
+\usepackage[hidelinks]{hyperref} %Querverweise
+\usepackage{hypcap} %richtige "Sprungaddresse" für Bilder
+
+%Sonstiges
+\usepackage{xspace}
+\usepackage{nextpage}
+
+\setcounter{tocdepth}{4}
+\setcounter{secnumdepth}{4}
+
+
+%*******	 Wortumdefinierungen		*******%
+\renewcommand*{\chapterautorefname}{Kapitel}
+\renewcommand*{\sectionautorefname}{Abschnitt}
+\renewcommand*{\subsectionautorefname}{Unterabschnitt}
+\renewcommand*{\figureautorefname}{Abbildung}
+\renewcommand*{\equationautorefname}{Gleichung}
+\renewcommand*{\tableautorefname}{Tabelle}
+\newcommand{\ctextit}[1]{\mbox{\textit{#1}}}
+
+%*******	 Glossar		*******%
+\newcommand{\gls}[2]{%
+  \DTLnewrow{glossar}% Create a new entry
+  \DTLnewdbentry{glossar}{label}{#1}% Add entry and description
+  \DTLnewdbentry{glossar}{description}{#2}
+}
+
+\renewenvironment{glossary}{%
+  \DTLifdbexists{glossar}{\DTLcleardb{glossar}}{\DTLnewdb{glossar}}% Create new/discard old glossary
+}{%
+  \DTLsort{label}{glossar}% Sort glossary
+  \begin{description}
+    \DTLforeach*{glossar}{\theLabel=label, \theDesc=description}{%
+      \item[\theLabel] \hfill \\ \theDesc}% Print each item
+  \end{description}%
+}
+
+%*******	 Einstellungen		*******%
+%Dokument
+\emergencystretch = 2.5em  %lässt größere Abstände zwischen Wörtern zu
+\frenchspacing 
+\OnehalfSpacing
+\maxsecnumdepth{subsection}
+\setlength\parindent{0pt}
+\setlength{\parskip}{2ex}
+
+%Penalties
+\linepenalty=10     %page break within a paragraph
+\hyphenpenalty=500  %line break at an automatic hyphen
+\binoppenalty=700   %line break at a binary operator
+\relpenalty=500     %line break at a relation
+\clubpenalty=10000    %page break after first line of paragraph
+\widowpenalty=10000   %page break before last line of paragraph
+\brokenpenalty=1000  %page break after a hyphenated line
+\tolerance=10      %acceptable badness of lines after hyphenation
+\sloppybottom
+
+%Seitenlayout
+\settrims{0pt}{0pt}
+\setxlvchars[\normalfont]
+\setlxvchars[\normalfont]
+\setlrmarginsandblock{30mm}{25mm}{*}
+\setulmarginsandblock{30mm}{30mm}{*}
+\setheadfoot{15mm}{10mm}
+\checkandfixthelayout
+
+%Kapitel
+\makechapterstyle{black}{
+    \chapterstyle{southall}
+    \renewcommand\chapterheadstart{\vspace*{0pt}}
+    \renewcommand*{\printchapternum}{%
+        \addtolength{\midchapskip}{-\beforechapskip}
+        \begin{minipage}[t][\baselineskip][b]{\beforechapskip}
+            {\vspace{0pt}\chapnumfont\thechapter}
+        \end{minipage}}
+    \renewcommand\printchaptertitle[1]{%
+        \hfill\begin{minipage}[t]{\midchapskip}
+            {\vspace{0pt}\chaptitlefont ##1\par}
+        \end{minipage}}
+    \renewcommand\chaptitlefont{\huge\rmfamily\raggedright\bfseries}
+    \setlength{\afterchapskip}{2ex}
+    \addtolength{\midchapskip}{\beforechapskip}
+}
+
+\chapterstyle{black}
+
+
+
+%header, footer und Co.
+\makepagestyle{black} 
+\makeoddfoot{black}{}{}{\ifonlyfloats{}{\thepage}} 
+\makeevenfoot{black}{\ifonlyfloats{}{\thepage}}{}{}
+\makeheadrule{black}{\textwidth}{\ifonlyfloats{0pt}{\normalrulethickness}}
+\makeevenhead{black}{\ifonlyfloats{}{\small\textsc{\leftmark}}}{}{} 
+\makeoddhead{black}{}{}{\ifonlyfloats{}{\small\textsc{\rightmark}}}
+%\makeoddfoot{black}{}{}{\thepage} 
+%\makeevenfoot{black}{\thepage}{}{}
+\makeheadrule{black}{\textwidth}{\normalrulethickness}
+\makeevenhead{black}{\small\textsc{\leftmark}}{}{} 
+\makeoddhead{black}{}{}{\small\textsc{\rightmark}}
+
+\makepsmarks{black}{
+  \nouppercaseheads
+  \createmark{chapter}{both}{shownumber}{}{\space}
+  \createmark{section}{right}{shownumber}{}{\space}
+}
+
+\makepagestyle{blackchapter}
+\makeoddfoot{blackchapter}{}{}{\thepage} 
+\makeevenfoot{blackchapter}{\thepage}{}{}
+
+\pagestyle{black}
+
+%*******        Commands        *******%
+\newcommand{\logos}[2]{\newcommand{\theLogos}{
+        \begin{center}
+            \includegraphics[scale=#2]{#1}
+        \end{center}
+    }}
+
+\newcommand{\modul}[1]{\newcommand{\theModul}{#1\xspace}}
+\newcommand{\faculty}[1]{\newcommand{\theFaculty}{#1\xspace}}
+\newcommand{\institut}[1]{\newcommand{\theInstitut}{#1\xspace}}
+\newcommand{\studentID}[1]{\newcommand{\theStudentID}{#1\xspace}}
+\newcommand{\course}[1]{\newcommand{\theCourse}{#1\xspace}}
+\newcommand{\supervisor}[1]{\newcommand{\theSupervisor}{#1\xspace}}
+\newcommand{\secSupervisor}[1]{\newcommand{\theSecSupervisor}{#1\xspace}}
+
+\newcommand*{\quelle}[1]{\par\vspace{1mm}\raggedleft\footnotesize Quelle:~#1\par\vspace{-3mm}}
+
+\newcommand{\blankpage}{ 
+    \newpage
+    \thispagestyle{empty}
+    \cleartooddpage[\thispagestyle{empty}] 
+}
+
+\newcommand{\initAnhang}{
+    \renewcommand{\thepage}{\Alph{chapter}\ \arabic{page}}
+    \newpage
+    \setcounter{page}{1}
+}
+
+\newcommand{\longpage}[1][1]{\enlargethispage{#1\baselineskip}} 
+% To increase the amount of text that can fit onto one page
+% Ex. \longpage => increase \textheight with 1 row of text
+% Ex. \longpage[2] => increase \textheight with 2 rows of text
+
+\newcommand{\shortpage}[1][1]{\enlargethispage{-#1\baselineskip}} 
+% To decrease the amount of text that can fit onto one page
+% Ex. \shortpage => decrease \textheight with 1 row of text
+% Ex. \shortpage[2] => decrease \textheight with 2 rows of text
+
+\newenvironment{code}{\captionsetup{type=figure}}{}

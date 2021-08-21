@@ -1,3 +1,4 @@
+\chapter{Einleitung}
 \section{Motivation}
 Das Autonome Fahren ist ein Konzept, welches mehr und mehr an Bedeutung gewinnt. Da mit der zunehmenden
 Digitalisierung auch eine höherer Grad der Automatisierung gefragt ist, um z.B. Logistik- oder Transport-Prozesse 
@@ -34,8 +35,30 @@ Ein Beispiel hierfür ist die Erkennung von Wildtieren, die den Straßenverkehr 
 Autohersteller Volvo kann mit seiner Software beispielsweise die heimische Fauna bestehend aus Tieren wie Elchen, Rehen oder Rentieren
 zuverlässig erkennen, scheitert jedoch beispielsweise an Kängurus. \cite{volvo-detection-report} 
 Dies zeigt, dass es unzählig viele Szenarien gibt, die es beim Autonomen Fahren zu betrachten gibt, um die Fahrsicherheit entsprechend
-zu gewährleisten.
+zu gewährleisten. Hier gilt es auch darauf zu achten, dass die Sicherheit nicht nur für den Fahrzeugführer, sondern auch für Fußgänger, Radfahrer
+u.Ä. gesichert ist. Aus diesem Grund werden in dieser Thesis eher Randszenarien behandelt, die nicht im alltäglichen Straßenverkehr auftreten jedoch
+kritisch für die Sicherheit von Fahrzeugführer und Umwelt sind.
+
+Abgesehen von öffentlichen Straßen gibt es auch andere Bereiche, in denen das Autonome Fahren Einzug erhalten hat. Ein Beispiel sind hier automatisierte
+Transportsysteme, wie sie z.B. in Waren- oder Krankenhäusern zu finden sind. Die Roboter sind hier zuständig, sich innerhalb des eines Gebäudes zu orientieren und
+einzelne Güter zu transportieren. Wichtig ist hierbei insbesondere, dass sich die Roboter nicht gegenseitig behindern oder zur Gefahr für den Menschen werden.
+
+Die Orientierung in Gebäuden ist hierbei eine besondere Herausforderung, da es für diese im Regelfall keine digitalen Karten gibt, anhand der sich die Roboter
+orientieren können. Diese Karten werden somit teils manuell erstellt, wodurch sich Probleme in der Genauigkeit sowie Flexibilität offenbaren. Der Vermessungsprozess kann darüber
+hinaus mehrere Monate andauern, wie es z.B. im Greifswalder Klinikum der Fall war, als der Einsatz von TRANSCAR-Robotern vorbereitet wurde. \footnote{\url{https://webmoritz.de/2013/05/16/ameisen-im-klinikum/}}
 
 
 \section{Zielstellung}
-Welche Szenarien gibt es zu beachten und wie sollen diese bearbeitet werden?
+Für das autonome Fahren existieren schon zuverlässige Lösungen, die im Alltag funktionieren. In der Thesis wird deshalb der Fokus auf Randszenarien gelegt, die im Kern die Erkennung
+und das Verhalten eines Fahrzeugs an einer ungeregelten Kreuzung beschreiben. Die Zielstellung ist, basierend auf dem Quellcode des "TurtleBot 3 AutoRace"-Projekts \footnote{\url{https://github.com/ROBOTIS-GIT/TurtleBot 3_autorace}},
+ungeregelte Kreuzungen zu identifizieren. Der Roboter soll hier feststellen, wo die Kreuzung beginnt und in welche Richtungen er fahren kann. Zusätzlich soll er erkennen,
+aus welchen Richtungen er mit Gegenverkehr rechnen muss. Umgesetzt wird dies mit Bildverarbeitung.
+Im zweiten Schritt soll der Roboter zusätzlich erkennen, ob andere Fahrzeuge in der Nähe sind mit denen eine Kollisionsgefahr besteht. Hierfür wird eine Technik genutzt, die an Connected
+Cars angelehnt ist.
+Im letzten Schritt sollen beide Komponenten zusammengeführt werden. Der Roboter soll sich in seiner Umgebung so verhalten, dass grundlegende Regeln des Straßenverkehrs, wie z.B. rechts vor
+links, umgesetzt werden. Darüber hinaus soll der Roboter auch potenzielle Regelbrüche, wie das nehmen der Vorfahrt, frühzeitig erkennen und eine Kollision vermeiden.
+
+Grundsätzlich gab es in diese Richtung bereits Forschungen, jedoch waren diese Versuche auf Fahrzeuge innerhalb einer Fahrbahn begrenzt, bei denen versucht wurde, Kollisionen durch
+diverse Mannöver zu vermeiden \cite{griffith}. Ein anderer Ansatz zu Erkennung von Kreuzungen war auf Basis von Punktwolken, die durch einen LiDAR-Sensor erstellt wurden. Dieser Ansatz
+setzt jedoch eine physische Fahrbahnbegrenzung, wie durch einen Bordstein, voraus \cite{lidar-recognition}.
+

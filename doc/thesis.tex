@@ -1,0 +1,40 @@
+\documentclass[a4paper, 12pt, openbib, oneside]{memoir}
+
+\input{auxiliary_files/preamble}
+
+%Referenzen
+\addbibresource{references.bib} 
+ 
+\logos{logos/host_wo_claim}{0.4}
+\modul{Masterthesis}
+\title{Simulation und Erprobung verschiedener Szenarien des Autonomen Fahrens am TurtleBot3}
+\faculty{Fakultät für Elektrotechnik und Informatik}
+\institut{Hochschule Stralsund}
+\date{06.~Oktober~2021}
+\author{Moritz Wilke}
+\studentID{15214}
+\course{Informatik\,-\,Master (INFM)}
+\supervisor{Prof. Dr. rer. nat. Christian Bunse}
+\secSupervisor{Dr.-Ing. Jöran Pieper}
+ 
+\hypersetup{
+    hidelinks,
+    bookmarksnumbered,
+    pdftitle={\thetitle},
+    pdfauthor={\theauthor},
+}
+
+%*******    Eigentliches Dokument   *******%	
+\begin{document}
+\input{auxiliary_files/frontmatter.tex}
+\pagenumbering{arabic}
+
+\input{chapters/1_introduction}
+\input{chapters/2_grundlagen}
+\input{chapters/3_konzeption}
+\input{chapters/4_umsetzung}
+\input{chapters/5_ergebnisse}
+\input{chapters/6_fazit}
+
+\input{auxiliary_files/backmatter}
+\end{document} 

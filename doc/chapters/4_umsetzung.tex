@@ -1,0 +1,19 @@
+\chapter{Umsetzung}
+\section{Umstrukturierung}
+Der erste Bestandteil der Umsetzung ist es, das bestehende AutoRace-Projekt geringfügig umzustrukturieren. Im Wesentlichen sind hier zwei Komponenten relevant: 
+die Entfernung des irrelevanten Quellcodes sowie die Umstrukturierung des Lebenszyklus-Managements der einzelnen Nodes.
+
+Im bestehenden Projekt gibt es viel Programmcode, der für die Bearbeitung der Thesis grundlos ausgeführt wird. Im Konkreten handelt es sich hierbei um die Detektion von Ampeln
+und Verkehrsschildern. Solche Infrastuktur-Elemente gibt es in den Simulationswelten der Thesis nicht, wodurch unnötige Rechenleistung beansprucht wird. Zusätzlich besteht
+die Gefahr, dass diese Nodes für ein unvorhersehbares Verhalten sorgen, indem durch falsche Detektionen Daten veröffentlicht werden die zu einer Steuerung des Roboters führen. 
+Aus diesem Grund werden die entsprechenden Komponenten entfernt. Zusätzlich werden die Core-Nodes soweit angepasst, dass sämtliche Fallunterscheidung bezüglich des Modus
+auf das Wesentliche reduziert werden - das Halten der Fahrbahn und das Steuern an der Kreuzung. 
+
+Das Lebenszyklus-Management der Nodes sieht aktuell vor, dass diese dynamisch gestartet und bei Bedarf komplett beendet werden. Dies hat zufolge, dass der Roboter bei der Transition
+zwischen den einzelnen Modi warten muss, bis die Nodes wieder gestartet sind. Das ist ein unschönes Verhalten. In der Theorie gibt es für ROS ein Lebenszyklus-Management.\footnote{\url{https://design.ros2.org/articles/node_lifecycle.html}} 
+Das bestehende Projekt setzt auf die \textit{roslaunch}-API, um Nodes dynamisch zu starten und zu beenden. Für diese wurde die Funktionalität nicht umgesetzt oder dokumentiert. 
+Aus diesem Grund wird hier für jede Node ein neues Topic eingeführt. Über diese Topics wird mit Boolean-Nachrichten kommuniziert. Für die Node \textit{control\_crossing} wird beispielsweise
+das Topic \textit{/control\_crossing/active} implementiert. Wenn hier beispielsweise \textit{\textbf{TRUE}} empfangen wird, werden alle Subscriber der Node registiert. Wenn jedoch ein \textit{\textbf{FALSE}}
+empfangen wird, werden alle Subscriber der Node abgemeldet.
+Hierdurch kann der Roboter fast nahtlos den Modus wechseln. Ein Nachteil dieses Vorgehens ist, dass so alle Instanzen einer Node in einem Namespace simultan deaktiviert werden.
+Da für diese Thesis jedoch jede Node innerhalb ihres Namespaces einzigartig ist, ist dieser Sachverhalt unerheblich.
