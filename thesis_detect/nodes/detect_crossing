@@ -84,6 +84,7 @@ class DetectCrossing():
         mask = self.mask_lines(cv_image)
         mask = cv2.dilate(mask, np.ones((20, 20)))
         mask = cv2.erode(mask, np.ones((10, 10)))
+        self.debug_image2.publish(self.cvBridge.cv2_to_compressed_imgmsg(mask, "jpg"))
 
         low_threshold = 50
         high_threshold = 255
@@ -123,12 +124,14 @@ class DetectCrossing():
             for line in related_lines:
                 for x1, y1, x2, y2 in line:
                     cv2.line(tmp_image, (x1, y1), (x2, y2), color, 5)
+                    pass
             lane_lines.append(centered_line)
             if centered_line is not None:
                 for rx1, ry1, rx2, ry2 in centered_line:
                     cv2.line(line_image, (rx1, ry1), (rx2, ry2), (127, 127, 0), 5)
 
-        self.debug_image1.publish(self.cvBridge.cv2_to_compressed_imgmsg(tmp_image, "jpg"))
+        color = list(np.random.choice(range(256), size=3))
+        self.debug_image1.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image, "jpg"))
 
         arr_cpy = self.crossing_reliabilities
         for i in range(0, len(arr_cpy)):
@@ -138,7 +141,6 @@ class DetectCrossing():
 
         self.compute_crossing(lane_lines, line_image)
 
-        self.debug_image2.publish(self.cvBridge.cv2_to_compressed_imgmsg(mask, "jpg"))
 
         crossings = []
         for i in range(0, len(self.crossing_reliabilities)):
@@ -381,27 +383,43 @@ class DetectCrossing():
                                          (0, reliability * 0.01 * 255, 0), -1)
 
     def compute_similars(self, line, lines, allowed_deviation_parallel=2):
-        related_lines = []
-        for x1, y1, x2, y2 in line:
-            pos_vector, dir_vector = get_vector_representation(x1, y1, x2, y2)
-            m1, _ = get_line_equation(x1, y1, x2, y2)
+        related_lines = [line]
         # find relevant lines that are "clustered"
-        for other_line in lines:
-            for x1, y1, x2, y2 in other_line:
-                intersect1 = get_perp_intersect_point(pos_vector, dir_vector, x1, y1)
-                distance1 = get_distance_between_vectors(intersect1, np.array([x1, y1]))
-                intersect2 = get_perp_intersect_point(pos_vector, dir_vector, x2, y2)
-                distance2 = get_distance_between_vectors(intersect2, np.array([x2, y2]))
+        found_new = True
+        while found_new:
+            found_new = False
+            for r_line in related_lines:
+                for ax1, ay1, ax2, ay2 in r_line:
+                    pos_vector, dir_vector = get_vector_representation(ax1, ay1, ax2, ay2)
+                    m1, _ = get_line_equation(ax1, ay1, ax2, ay2)
+                for other_line in lines:
+                    value = np.isin(other_line, related_lines)
+                    if value.all():
+                        continue
+                    for x1, y1, x2, y2 in other_line:
+                        intersect1 = get_perp_intersect_point(pos_vector, dir_vector, x1, y1)
+                        distance1 = get_distance_between_vectors(intersect1, np.array([x1, y1]))
+                        intersect2 = get_perp_intersect_point(pos_vector, dir_vector, x2, y2)
+                        distance2 = get_distance_between_vectors(intersect2, np.array([x2, y2]))
 
-                m2, _ = get_line_equation(x1, y1, x2, y2)
+                        d1 = get_distance_between_vectors(np.array([ax1, ay1]), np.array([x1, y1]))
+                        d2 = get_distance_between_vectors(np.array([ax1, ay1]), np.array([x2, y2]))
+                        d3 = get_distance_between_vectors(np.array([ax2, ay2]), np.array([x1, y1]))
+                        d4 = get_distance_between_vectors(np.array([ax2, ay2]), np.array([x2, y2]))
 
-                if abs(distance1 - distance2) > 10:
-                    continue
-                distance = (distance1 + distance2) / 2
+                        if min(d1, d2) > 300 or min(d3, d4) > 300:
+                            continue
 
-                if distance > 200:
-                    continue
-                related_lines.append(other_line)
+                        m2, _ = get_line_equation(x1, y1, x2, y2)
+
+                        if abs(distance1 - distance2) > 10:
+                            continue
+                        distance = (distance1 + distance2) / 2
+
+                        if distance > 200:
+                            continue
+                        related_lines.append(other_line)
+                        found_new = True
         if len(related_lines) <= 1:
             return line, [line]
 

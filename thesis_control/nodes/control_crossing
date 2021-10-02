@@ -3,7 +3,7 @@
 
 from thesis_detect.msg import CrossingDataArray
 from enum import Enum
-from std_msgs.msg import UInt8
+from std_msgs.msg import UInt8, Float64, String
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import Point, Twist
@@ -12,6 +12,7 @@ import random
 import rospy
 from thesis_detect.math_util import *
 import numpy as np
+from thesis_detect.msg import DetectTrafficPosition
 
 
 class ControlCrossing():
@@ -21,17 +22,24 @@ class ControlCrossing():
         self.pub_crossing_step = rospy.Publisher('detect/crossing_stamped', UInt8, queue_size=1)
 
         self.sub_odom = rospy.Subscriber("odom", Odometry, self.cb_odom, queue_size=1)
+        self.sub_vel = rospy.Subscriber("control/max_vel", Float64, self.cb_vel, queue_size=1)
+        self.sub_direction = rospy.Subscriber('/detect/traffic/position', DetectTrafficPosition, self.cb_get_position,
+                                              queue_size=1)
         self.pub_navigation = rospy.Publisher('cmd_vel', Twist, queue_size=1)
+        self.sub_id = rospy.Subscriber('robot/id', String, self.cb_get_id, queue_size=1)
 
         self.CrossingSteps = Enum('CrossingSteps', 'idle drive_to_start drive_to_end finished')
         self.Modes = Enum("Modes", 'always_right always_left always_straight random')
 
         self.mode = self.Modes.always_left.value
-        self.VEL = 0.05
-
+        self.MAX_VEL = 0.05
+        self.VEL = self.MAX_VEL
         self.current_x = 0.0
         self.current_y = 0.0
         self.current_theta = 0.0
+        self.id = None
+
+        self.vehicles = {}
 
     def init(self):
         self.sub_crossing_data = rospy.Subscriber('detect/crossing/data', CrossingDataArray, self.cb_get_data,
@@ -41,6 +49,16 @@ class ControlCrossing():
         self.direction = None
         self.data = []
         self.counter = 0
+
+    def cb_get_position(self, msg):
+        if self.id != msg.vehicle_id and self.id is not None:
+            self.vehicles[msg.vehicle_id] = msg
+
+    def cb_vel(self, msg):
+        self.VEL = min(self.MAX_VEL, msg)
+
+    def cb_get_id(self, msg):
+        self.id = msg
 
     def cb_odom(self, msg):
         self.current_x = msg.pose.pose.position.x
@@ -70,6 +88,7 @@ class ControlCrossing():
             self.direction = random.choice(directions)
 
         rospy.loginfo("Taking direction %s" % self.direction)
+        self.data.reverse()
         for msg in self.data:
             if msg.direction == self.direction and msg.allowed:
                 self.relevant_msg = msg
@@ -109,22 +128,17 @@ class ControlCrossing():
         rospy.loginfo("currently at x %f y %f" % (self.current_x, self.current_y))
         goal = np.array([self.relevant_msg.start_x, self.relevant_msg.start_y])
         current = np.array([self.current_x, self.current_y])
-        n_goal = current - goal
-        n_goal[1], n_goal[0] = n_goal[0], n_goal[1]
-        n_goal = rotate_point_around_origin(n_goal, self.current_theta)
-        #if self.relevant_msg.direction == "left":
-            #self.relevant_msg.angle_at_start = pi + self.relevant_msg.angle_at_start
-        end_orientation = self.current_theta - self.relevant_msg.angle_at_start
+        n_goal = goal - current
+        n_goal = rotate_point_around_origin(n_goal, -self.current_theta)
+        end_orientation = self.current_theta + self.relevant_msg.angle_at_start
 
-        if (n_goal[0] >= 0 and self.relevant_msg.angle_at_start < self.relevant_msg.angle_to_start) \
-                or (n_goal[0] <= 0 and self.relevant_msg.angle_at_start > self.relevant_msg.angle_to_start):
-            intermediate_goal = (goal + current) / 2
-            rospy.loginfo("driving to intermediate point t x %f y %f" % (intermediate_goal[0], intermediate_goal[1]))
-            self.drive_to_point_in_angle(intermediate_goal, -self.relevant_msg.angle_to_start,
-                                         self.current_theta - self.relevant_msg.angle_to_start)
-            self.relevant_msg.angle_at_start = self.relevant_msg.angle_at_start - self.relevant_msg.angle_to_start
-            end_orientation -= self.relevant_msg.angle_to_start
-        self.drive_to_point_in_angle(goal, -self.relevant_msg.angle_at_start, end_orientation)
+        intermediate_goal = (goal + current) / 2
+        rospy.loginfo("driving to intermediate point t x %f y %f" % (intermediate_goal[0], intermediate_goal[1]))
+        self.drive_to_point_in_angle(intermediate_goal, - self.relevant_msg.angle_to_start,
+                                     self.current_theta - self.relevant_msg.angle_to_start)
+        self.relevant_msg.angle_at_start = - self.relevant_msg.angle_at_start + self.relevant_msg.angle_to_start
+        end_orientation -= self.relevant_msg.angle_to_start
+        self.drive_to_point_in_angle(goal, self.relevant_msg.angle_at_start, end_orientation)
         rospy.loginfo("start point reached")
 
     def drive_to_point_in_angle(self, goal, angle, target_orientation):
@@ -133,21 +147,16 @@ class ControlCrossing():
         radius = compute_radius(angle, goal, np.array([self.current_x, self.current_y]))
         angular_distance = compute_circle_arc(angle, radius)
         previous_distance = angular_distance
-        print(self.current_theta)
-        print(angle)
-        print(target_orientation)
-        print("####")
         while not nearby:
             twist_msg = Twist()
             time_units = abs(angular_distance / self.VEL)
             angular_velocity = angle / time_units
 
-            if abs(target_orientation - self.current_theta) < 0.05:
-                angular_velocity = (self.desired_theta - self.current_theta/2)
             twist_msg.linear.x = self.VEL
             twist_msg.angular.z = angular_velocity
 
             self.pub_navigation.publish(twist_msg)
+
             r.sleep()
 
             radius = compute_radius(angle, goal, np.array([self.current_x, self.current_y]))
@@ -166,8 +175,31 @@ class ControlCrossing():
         self.pub_navigation.publish(twist_msg)
 
     def check_traffic(self):
-        rospy.loginfo("checking for traffic (not yet implemented)")
-        pass
+        rospy.loginfo("checking for traffic")
+        goal = np.array([self.relevant_msg.target_x, self.relevant_msg.target_y])
+        current = np.array([self.current_x, self.current_y])
+        wait = True
+        loop_rate = 100
+        r = rospy.Rate(loop_rate)
+        max_loops = 5000/loop_rate
+        current_loop = 0
+        while wait and current_loop < max_loops:
+            wait = False
+            current_loop += 1
+            for vehicle_id in self.vehicles:
+                entry = self.vehicles[vehicle_id]
+                point = np.array([entry.pose.pose.position.x, entry.pose.pose.position.y])
+                # blocked?
+                if abs(get_distance_between_vectors(goal, point)) < 0.1:
+                    rospy.loginfo("vehicle %s in the way" % entry.vehicle_id)
+                    wait = True
+                # priority?
+                point_at_origin = point - current
+                distance = get_magnitude(point_at_origin)
+                rel_point_at_origin = rotate_point_around_origin(point_at_origin, -self.current_theta)
+                if distance < 1 and rel_point_at_origin[1] > 0:
+                    rospy.loginfo("vehicle %s has priority" % entry.vehicle_id)
+                    wait = True
 
     def drive_to_target(self):
         rospy.loginfo("driving to target point")
@@ -183,3 +215,20 @@ if __name__ == '__main__':
     rospy.init_node('control_crossing')
     node = ControlCrossing()
     node.main()
+
+    c_pose = msg.current_vehicle_pose
+    o_pose = msg.other_vehicle_pose
+    vc_pose = np.array([c_pose.pose.position.x, c_pose.pose.position.y])
+    vo_pose = np.array([o_pose.pose.position.x, o_pose.pose.position.y])
+    other_vehicle_position = vo_pose - vc_pose
+    rot_q = msg.pose.pose.orientation
+    _, _, current_yaw = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
+
+    distance = get_magnitude(other_vehicle_position)
+    if distance < 1.5:
+        rel_other_vehicle = rotate_point_around_origin(other_vehicle_position, -current_yaw)
+        # vehicle is left, therefore has priority
+        if rel_other_vehicle[1] > 0:
+            # slow down to prevent collision proactively
+            vel = self.MAX_VEL / 2
+            self.pub_max_vel.publish(vel)

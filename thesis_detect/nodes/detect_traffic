@@ -10,6 +10,7 @@ from thesis_detect.math_util import *
 from thesis_detect.collision_enum import collision_enum
 import tf
 import numpy as np
+from std_msgs.msg import String
 
 
 class DetectTraffic():
@@ -20,16 +21,18 @@ class DetectTraffic():
                                               queue_size=1)
         self.sub_scan = rospy.Subscriber('scan', LaserScan, self.cb_get_scan)
         self.pub_collision = rospy.Publisher('detect/traffic/collision', DetectCollision, queue_size=1)
+        self.pub_id = rospy.Publisher('robot/id', String, queue_size=1)
 
         self.pose = None
         self.twist = None
         self.id = uuid.uuid4().hex
+        self.pub_id.publish(self.id)
 
         self.threshold_intersection_range = 1.5
         self.max_time_frame = 5
-        self.safe_path_distance = 3
+        self.safe_path_distance = 2
         self.max_angle_deviation = 0.2
-        self.safe_radius = 0.3
+        self.safe_radius = 0.1
 
         self.current_obstacles = np.array([])
 
@@ -39,7 +42,7 @@ class DetectTraffic():
 
         # publish message with current direction
         new_msg = DetectTrafficPosition()
-        new_msg.vehicle_id = self.id + "1"
+        new_msg.vehicle_id = self.id
         new_msg.pose = self.pose
         new_msg.twist = self.twist
 
@@ -148,7 +151,7 @@ class DetectTraffic():
                 new_msg.collision_type = collision_enum.intersection.value
                 new_msg.distance_till_collision = c_real_distance2
                 new_msg.time_till_collision = c_real_distance2 / self.twist.twist.linear.x
-        except ValueError:
+        except (ValueError, ZeroDivisionError):
             # Does not matter, they do not intersect and that's okay!
             pass
 
@@ -160,35 +163,43 @@ class DetectTraffic():
             self.pose.pose.orientation.w)
         _, _, yaw = tf.transformations.euler_from_quaternion(quaternion)
 
-        new_cp1 = rotate_point_around_origin(cp1, - yaw)
-        new_cp2 = rotate_point_around_origin(cp2, - yaw)
-
-        poi = np.array([new_cp2]) - np.array([new_cp1])
-        poi = poi.flatten()
-        norm_poi = normalize_vector(poi)
-        norm_poi = norm_poi.flatten()
-        poi_angle = to_radians(norm_poi)
-        poi_distance = get_magnitude(poi)
+        current_poi_angle, current_poi_distance = self.relate_at_origin(cp1, cp2, yaw)
 
         # determine if a vehicle is too close
-        if abs(poi_angle) < pi / 4 and poi_distance < self.safe_radius:
-            # send collision message
+        if current_poi_distance < self.safe_radius:
+            # other vechicle is inside a 0.5 radius - check if it is right before us or probably colliding
+            # we check it from the perspective of the other vehicle
             quaternion = (
                 msg.pose.pose.orientation.x,
                 msg.pose.pose.orientation.y,
                 msg.pose.pose.orientation.z,
                 msg.pose.pose.orientation.w)
             _, _, other_yaw = tf.transformations.euler_from_quaternion(quaternion)
-            new_msg.distance_till_collision = poi_distance
-            new_msg.time_till_collision = poi_distance / self.twist.twist.linear.x
-            if abs(yaw - other_yaw) < self.max_angle_deviation:
-                # same direction
-                new_msg.collision_type = collision_enum.vehicle_ahead.value
-            else:
+            other_poi_angle, other_poi_distance = self.relate_at_origin(cp1, cp2, other_yaw)
+            new_msg.distance_till_collision = current_poi_distance
+            new_msg.time_till_collision = current_poi_distance / self.twist.twist.linear.x
+            if abs(((other_poi_angle + pi/4) % (2 * pi)) - pi/4) < pi / 4:
                 new_msg.collision_type = collision_enum.immediate_collision.value
+
+            # the vehicle is right before us but is it driving approximately in the same direction?
+            if abs(((current_poi_angle + pi/4) % (2 * pi)) - pi/4) < pi / 4:
+                if abs(yaw - other_yaw) < self.max_angle_deviation:
+                    # same direction
+                    new_msg.collision_type = collision_enum.vehicle_ahead.value
 
         if new_msg.collision_type:
             self.pub_collision.publish(new_msg)
+
+    def relate_at_origin(self, p1, p2, yaw):
+        new_cp1 = rotate_point_around_origin(p1, - yaw)
+        new_cp2 = rotate_point_around_origin(p2, - yaw)
+        poi = np.array([new_cp2]) - np.array([new_cp1])
+        poi = poi.flatten()
+        norm_poi = normalize_vector(poi)
+        norm_poi = norm_poi.flatten()
+        poi_angle = to_radians(norm_poi)
+        poi_distance = get_magnitude(poi)
+        return poi_angle, poi_distance
 
     def compute_circle_data(self, twist_msg, pose_msg):
         linear_vel = twist_msg.twist.linear.x

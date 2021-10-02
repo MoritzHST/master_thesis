@@ -120,16 +120,19 @@ class ImageProjection():
 
         ## homography transform process
         # selecting 4 points from the original image
-        pts_src = np.array([[160 - top_x, 180 - top_y], [160 + top_x, 180 - top_y], [160 + bottom_x, 120 + bottom_y], [160 - bottom_x, 120 + bottom_y]])
+        #pts_src = np.array([[160 - (top_x), 300 - (3 * top_y)], [160 + (top_x), 300 - (3 * top_y)], [160 + (bottom_x), 0 + (bottom_y)], [160 - (bottom_x), 0 + (bottom_y)]])
+        pts_src = np.array([[160 - top_x, 180 - top_y], [160 + top_x, 180 - top_y], [160 + bottom_x, 120 + bottom_y],
+                            [160 - bottom_x, 120 + bottom_y]])
+        #pts_src = np.array([[160 - top_x, 180 - top_y], [160 + top_x, 180 - top_y], [160 + bottom_x, 120 + bottom_y], [160 - bottom_x, 120 + bottom_y]])
 
         # selecting 4 points from image that will be transformed
-        pts_dst = np.array([[200, 0], [800, 0], [800, 600], [200, 600]])
+        pts_dst = np.array([[400, 150], [600, 150], [600, 450], [400, 450]])
 
         # finding homography matrix
         h, status = cv2.findHomography(pts_src, pts_dst)
 
         # homography process
-        cv_image_homography = cv2.warpPerspective(cv_image_original, h, (1000, 600))
+        cv_image_homography = cv2.warpPerspective(cv_image_original, h, (1000, 800))
 
         # fill the empty space with black triangles on left and right side of bottom
         triangle1 = np.array([[0, 599], [0, 340], [200, 599]], np.int32)

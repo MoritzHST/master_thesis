@@ -47,7 +47,7 @@ class CoreNodeController():
 
         self.pub_mode_return = rospy.Publisher('core/returned_mode', UInt8, queue_size=1)
 
-        self.Launcher = Enum('Launcher', 'launch_camera_ex_calib launch_detect_lane launch_control_lane launch_detect_traffic_light launch_control_traffic_light launch_detect_crossing launch_control_crossing launch_detect_traffic')
+        self.Launcher = Enum('Launcher', 'launch_camera_ex_calib launch_detect_lane launch_control_lane launch_detect_traffic_light launch_control_traffic_light launch_detect_crossing launch_control_crossing launch_detect_traffic launch_control_traffic')
         self.CrossingSteps = Enum('CrossingSteps', 'idle drive_to_start drive_to_end finished')
         self.uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
 
@@ -62,6 +62,7 @@ class CoreNodeController():
         self.launch_detect_crossing_launched = False
         self.launch_control_crossing_launched = False
         self.launch_detect_traffic_launched = False
+        self.launch_control_traffic_launched = False
 
         self.current_mode = self.CurrentMode.idle.value
 
@@ -119,7 +120,8 @@ class CoreNodeController():
             self.launch(self.Launcher.launch_control_lane.value, True)
             self.launch(self.Launcher.launch_detect_crossing.value, True)
             self.launch(self.Launcher.launch_control_crossing.value, True)
-            self.launch(self.Launcher.launch_detect_traffic, True)
+            self.launch(self.Launcher.launch_detect_traffic.value, True)
+            self.launch(self.Launcher.launch_control_traffic.value, True)
 
         self.is_triggered = False
 
@@ -230,6 +232,22 @@ class CoreNodeController():
                 if self.launch_detect_traffic_launched:
                     self.launch_detect_traffic_launched = False
                     self.launch_detect_traffic.shutdown()
+                else:
+                    pass
+
+        elif launch_num == self.Launcher.launch_control_traffic.value:
+            if is_start:
+                if not self.launch_control_traffic_launched:
+                    self.launch_control_traffic = roslaunch.scriptapi.ROSLaunch()
+                    self.launch_control_traffic = roslaunch.parent.ROSLaunchParent(self.uuid, [self.ros_package_path + "control/launch/thesis_control_traffic.launch"])
+                    self.launch_control_traffic_launched = True
+                    self.launch_control_traffic.start()
+                else:
+                    pass
+            else:
+                if self.launch_control_traffic_launched:
+                    self.launch_control_traffic_launched = False
+                    self.launch_control_traffic.shutdown()
                 else:
                     pass
 

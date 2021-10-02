@@ -34,7 +34,6 @@ class ControlLane():
         self.sub_lane = rospy.Subscriber('control/lane', Float64, self.cb_follow_lane, queue_size=1)
         self.sub_max_vel = rospy.Subscriber('control/max_vel', Float64, self.cb_get_max_vel, queue_size=1)
         self.pub_cmd_vel = rospy.Publisher('control/cmd_vel', Twist, queue_size=1)
-        self.sub_collision = rospy.Subscriber('detect/traffic/collision', DetectCollision, self.cb_collision, queue_size=1)
         self.last_collision_detection = time.time() * 1000
 
         self.lastError = 0
@@ -44,7 +43,7 @@ class ControlLane():
         self.time_frame_after_collision = 2000
         self.immediate_collision = False
         self.min_vehicle_distance = 0.05
-        self.safe_radius = 0.3
+        self.safe_radius = 0.5
 
         rospy.on_shutdown(self.shutdown)
 
@@ -59,33 +58,6 @@ class ControlLane():
 
     def cb_get_max_vel(self, max_vel_msg):
         self.MAX_VEL = max_vel_msg.data
-
-    def cb_collision(self, msg):
-        if msg.type in (collision_enum.vehicle_ahead.value, collision_enum.immediate_collision.value):
-            self.last_collision_detection = time.time() * 1000
-            self.collision_triggered = True
-
-            if msg.type == collision_enum.vehicle_ahead.value and not self.immediate_collision:
-                c_pose = msg.current_vehicle_pose
-                o_pose = msg.other_vehicle_pose
-                vc_pose = np.arry([c_pose.pose.position.x, c_pose.pose.position.y, c_pose.pose.position.z])
-                vo_pose = np.arry([o_pose.pose.position.x, o_pose.pose.position.y, o_pose.pose.position.z])
-                distance = get_distance_between_vectors(vc_pose, vo_pose)
-                distance = distance - self.min_vehicle_distance
-                if distance < 0:
-                    distance = 0
-
-                #min offset is 0.3, so 0.25 represents the max distance at which 100% of other vehicle speed should be taken
-                scale = distance / (self.safe_radius - self.min_vehicle_distance)
-                self.MAX_VEL = msg.twist.twist.angular.z * scale
-
-
-            elif msg.type == collision_enum.immediate_collision.value:
-                self.MAX_VEL = 0
-                self.immediate_collision = True
-
-
-
 
 
     def cb_follow_lane(self, desired_center):
