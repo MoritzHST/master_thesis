@@ -54,11 +54,11 @@ class DetectCrossing():
 
         self.pub_crossing = rospy.Publisher('detect/crossing/data', CrossingDataArray, queue_size=1)
 
-        self.debug_image = rospy.Publisher('mw/debug/compressed', CompressedImage, queue_size=1)
-        self.debug_image1 = rospy.Publisher('mw/debug1/compressed', CompressedImage, queue_size=1)
-        self.debug_image2 = rospy.Publisher('mw/debug2/compressed', CompressedImage, queue_size=1)
-        self.debug_image3 = rospy.Publisher('mw/debug3/compressed', CompressedImage, queue_size=1)
-        self.debug_image4 = rospy.Publisher('mw/debug4/compressed', CompressedImage, queue_size=1)
+        self.pub_crossing_keypoints = rospy.Publisher('detect/crossing/keypoints/compressed', CompressedImage, queue_size=1)
+        self.pub_detected_lines = rospy.Publisher('detect/crossing/detected_lines/compressed', CompressedImage, queue_size=1)
+        self.pub_preprocessed_image = rospy.Publisher('detect/crossing/preprocessed/compressed', CompressedImage, queue_size=1)
+        self.pub_crossing_keypoints_homography = rospy.Publisher('detect/crossing/keypoints_homography/compressed', CompressedImage, queue_size=1)
+        self.pub_lines = rospy.Publisher('detect/crossing/lines/compressed', CompressedImage, queue_size=1)
         self.pub_max_vel = rospy.Publisher('control/max_vel', Float64, queue_size=1)
         self.crossing_reliabilities = []
         self.counter = 1
@@ -81,10 +81,7 @@ class DetectCrossing():
         np_arr = np.fromstring(image.data, np.uint8)
         cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        mask = self.mask_lines(cv_image)
-        mask = cv2.dilate(mask, np.ones((20, 20)))
-        mask = cv2.erode(mask, np.ones((10, 10)))
-        self.debug_image2.publish(self.cvBridge.cv2_to_compressed_imgmsg(mask, "jpg"))
+        mask = self.preprocess_image(cv_image)
 
         low_threshold = 50
         high_threshold = 255
@@ -97,7 +94,7 @@ class DetectCrossing():
         line_image = np.copy(cv_image) * 0  # creating a blank to draw lines on
         tmp_image = np.copy(cv_image) * 0
 
-        self.debug_image4.publish(self.cvBridge.cv2_to_compressed_imgmsg(edges, "jpg"))
+        self.pub_lines.publish(self.cvBridge.cv2_to_compressed_imgmsg(edges, "jpg"))
 
         # Run Hough on edge detected image
         # Output "lines" is an array containing endpoints of detected line segments
@@ -105,33 +102,8 @@ class DetectCrossing():
                                 min_line_length, max_line_gap)
         if lines is None:
             return
-        removed_lines = None
-        lane_lines = []
-        for line in lines:
-            if removed_lines is not None and len(removed_lines) > 0:
-                value = np.isin(line, removed_lines)
-                if value.all():
-                    continue
-                else:
-                    pass
 
-            centered_line, related_lines = self.compute_similars(line, lines)
-            if removed_lines is None and len(related_lines) > 0:
-                removed_lines = related_lines
-            elif len(related_lines) > 0:
-                removed_lines = np.concatenate((removed_lines, related_lines))
-            color = list(np.random.choice(range(256), size=3))
-            for line in related_lines:
-                for x1, y1, x2, y2 in line:
-                    cv2.line(tmp_image, (x1, y1), (x2, y2), color, 5)
-                    pass
-            lane_lines.append(centered_line)
-            if centered_line is not None:
-                for rx1, ry1, rx2, ry2 in centered_line:
-                    cv2.line(line_image, (rx1, ry1), (rx2, ry2), (127, 127, 0), 5)
-
-        color = list(np.random.choice(range(256), size=3))
-        self.debug_image1.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image, "jpg"))
+        lane_lines = self.compute_centered_lines(line_image, lines, tmp_image)
 
         arr_cpy = self.crossing_reliabilities
         for i in range(0, len(arr_cpy)):
@@ -141,7 +113,28 @@ class DetectCrossing():
 
         self.compute_crossing(lane_lines, line_image)
 
+        crossings = self.compute_keypoints(cv_image, line_image)
 
+        self.pub_crossing_data(crossings)
+
+        # selecting 4 points from the original image
+        pts_dst = np.array(
+            [[160 - self.top_x, 180 - self.top_y], [160 + self.top_x, 180 - self.top_y],
+             [160 + self.bottom_x, 120 + self.bottom_y],
+             [160 - self.bottom_x, 120 + self.bottom_y]])
+
+        # selecting 4 points from image that will be transformed
+        pts_src = np.array([[200, 0], [800, 0], [800, 600], [200, 600]])
+
+        # finding homography matrix
+        h, status = cv2.findHomography(pts_src, pts_dst)
+
+        # homography process
+        line_image_new = cv2.warpPerspective(line_image, h, (320, 240))
+        self.pub_crossing_keypoints.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image, "jpg"))
+        self.pub_crossing_keypoints_homography.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image_new, "jpg"))
+
+    def compute_keypoints(self, cv_image, line_image):
         crossings = []
         for i in range(0, len(self.crossing_reliabilities)):
             crossing = self.crossing_reliabilities[i]
@@ -203,7 +196,7 @@ class DetectCrossing():
             c_intersection_start_target = self.convert_to_coordinates(intersection_start_target)
             m, _ = get_line_equation(0, 0, c_start[0], c_start[1])
             if 0 == c_start[0]:
-                m = pi/2
+                m = pi / 2
             crossing["angle_to_start"] = abs(abs(atan(m)) - (pi / 2)) * (m / abs(m))
 
             _, dir_vector = get_vector_representation(p1[0], p1[1], p2[0], p2[1])
@@ -211,7 +204,7 @@ class DetectCrossing():
             c_start_line_point = self.convert_to_coordinates(start_line_point)
             m, _ = get_line_equation(c_start_line_point[0], c_start_line_point[1], c_start[0], c_start[1])
             if c_start_line_point[0] == c_start[0]:
-                m = pi/2
+                m = pi / 2
             crossing["angle_at_start"] = abs(abs(atan(m)) - (pi / 2)) * (m / abs(m))
 
             start_target_angle = compute_angle_between_points(c_start[0], c_start[1], c_target[0], c_target[1],
@@ -230,25 +223,42 @@ class DetectCrossing():
             cv2.circle(line_image, target, 10, (0, 0, 255),
                        thickness=5)
             crossings.append(crossing)
+        return crossings
 
-        self.pub_crossing_data(crossings)
+    def compute_centered_lines(self, line_image, lines, tmp_image):
+        removed_lines = None
+        lane_lines = []
+        for line in lines:
+            if removed_lines is not None and len(removed_lines) > 0:
+                value = np.isin(line, removed_lines)
+                if value.all():
+                    continue
+                else:
+                    pass
 
-        # selecting 4 points from the original image
-        pts_dst = np.array(
-            [[160 - self.top_x, 180 - self.top_y], [160 + self.top_x, 180 - self.top_y],
-             [160 + self.bottom_x, 120 + self.bottom_y],
-             [160 - self.bottom_x, 120 + self.bottom_y]])
+            centered_line, related_lines = self.compute_similars(line, lines)
+            if removed_lines is None and len(related_lines) > 0:
+                removed_lines = related_lines
+            elif len(related_lines) > 0:
+                removed_lines = np.concatenate((removed_lines, related_lines))
+            color = list(np.random.choice(range(256), size=3))
+            for line in related_lines:
+                for x1, y1, x2, y2 in line:
+                    cv2.line(tmp_image, (x1, y1), (x2, y2), color, 5)
+                    pass
+            lane_lines.append(centered_line)
+            if centered_line is not None:
+                for rx1, ry1, rx2, ry2 in centered_line:
+                    cv2.line(line_image, (rx1, ry1), (rx2, ry2), (127, 127, 0), 5)
+        self.pub_detected_lines.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image, "jpg"))
+        return lane_lines
 
-        # selecting 4 points from image that will be transformed
-        pts_src = np.array([[200, 0], [800, 0], [800, 600], [200, 600]])
-
-        # finding homography matrix
-        h, status = cv2.findHomography(pts_src, pts_dst)
-
-        # homography process
-        line_image_new = cv2.warpPerspective(line_image, h, (320, 240))
-        self.debug_image.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image, "jpg"))
-        self.debug_image3.publish(self.cvBridge.cv2_to_compressed_imgmsg(line_image_new, "jpg"))
+    def preprocess_image(self, cv_image):
+        mask = self.mask_lines(cv_image)
+        mask = cv2.dilate(mask, np.ones((20, 20)))
+        mask = cv2.erode(mask, np.ones((10, 10)))
+        self.pub_preprocessed_image.publish(self.cvBridge.cv2_to_compressed_imgmsg(mask, "jpg"))
+        return mask
 
     def pub_crossing_data(self, crossings):
         crossing_data = CrossingDataArray()
